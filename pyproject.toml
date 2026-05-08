@@ -1,0 +1,87 @@
+# MYPY — KIỂM TRA KIỂU TĨNH
+[tool.mypy]
+python_version = "3.10"
+# Quét toàn bộ repo
+files = ["."]
+# Bỏ qua thư mục build/cache để giảm nhiễu
+exclude = [
+  "^build/",
+  "^dist/",
+  "^docs/",
+  "^\\.mypy_cache/",
+  "^\\.pytest_cache/",
+  "^\\.ruff_cache/",
+  "^\\.venv/",
+  "^venv/",
+]
+pretty = true
+show_error_codes = true
+# Cảnh báo cấu hình không dùng tới (tránh gõ sai key)
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+check_untyped_defs = true
+# Nới nhẹ để giảm nhiễu khi onboarding
+disallow_any_generics = false
+# Nới nhẹ để chấp nhận hàm chưa annotate đầy đủ
+disallow_untyped_defs = false
+disallow_incomplete_defs = true
+no_implicit_optional = true
+no_implicit_reexport = true
+strict_equality = true
+# Tạm bỏ lỗi import thiếu type từ thư viện ngoài
+ignore_missing_imports = true
+
+
+# RUFF — LINT & FORMAT
+[tool.ruff]
+target-version = "py310"
+# Theo chuẩn phổ biến tương tự Black
+line-length = 88
+extend-exclude = [
+  "build",
+  "dist",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".venv",
+  "venv",
+]
+
+[tool.ruff.lint]
+# Bộ rule kiểm tra code
+select = ["E", "W", "F", "I", "B", "C4", "UP", "RUF"]
+# Không bắt lỗi quá dài dòng vì formatter sẽ xử lý
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Cho phép import re-export trong package init
+"__init__.py" = ["F401"]
+
+[tool.ruff.format]
+# Định dạng code
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+
+
+# PYTEST — THIẾT LẬP CHẠY TEST
+[tool.pytest.ini_options]
+minversion = "8.0"
+# Hiển thị summary ngắn + bật strict + retry test fail tạm thời
+addopts = "-ra --strict-config --strict-markers --reruns 2 --reruns-delay 1"
+# Thư mục chứa test chính
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# Xfail chỉ hợp lệ khi khai báo rõ ràng
+xfail_strict = true
+# Timeout mặc định cho mỗi test case (giây)
+timeout = 600
+timeout_method = "thread"
+# Giữ warning ở mức hiển thị để ổn định hơn với dependency ngoài
+filterwarnings = ["default"]

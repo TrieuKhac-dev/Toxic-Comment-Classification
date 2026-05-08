@@ -1,0 +1,65 @@
+# Cấu hình Dependabot cho repo:
+# - "conda": cập nhật gói Conda + gói PyPI nằm trong environment.yml
+# - "github-actions": cập nhật action versions trong .github/workflows
+
+version: 2
+
+# Conda updater hiện cần cờ beta.
+enable-beta-ecosystems: true
+
+updates:
+  # Quét environment.yml ở thư mục gốc repository.
+  - package-ecosystem: "conda"
+    directory: "/"
+
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Asia/Ho_Chi_Minh"
+
+    # Không cập nhật các dependency quan trọng, tránh xung đột
+    ignore:
+      - dependency-name: "python"
+
+    # Gom dependency update vào 1 PR
+    groups:
+      conda-packages:
+        patterns:
+          - "*"
+
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+    labels:
+      - "dependencies"
+      - "conda"
+
+    open-pull-requests-limit: 5
+
+  # Quét workflow/action ở .github/workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Asia/Ho_Chi_Minh"
+
+    # Gom dependency update vào 1 PR
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+    open-pull-requests-limit: 5
