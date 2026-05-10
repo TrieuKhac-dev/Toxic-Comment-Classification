@@ -1,9 +1,12 @@
 import html
 import re
 import unicodedata
+from typing import Any
 
 import emoji
+import numpy as np
 import pandas as pd
+from sklearn.ensemble import IsolationForest
 
 
 def normalize_text(text: str, lower: bool = True, strip_spaces: bool = True) -> str:
@@ -149,4 +152,58 @@ def remove_duplicate_comments(
         len(grouped) - df_cleaned[comment_col].nunique()
     )
     report["kept_rows"] = len(df_cleaned)
+    return df_cleaned, report
+
+
+def remove_outliers(
+    df: pd.DataFrame,
+    feature_cols: list[str] | None = None,
+    contamination: float = 0.05,
+    random_state: int = 42,
+    label_col: str | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """
+    Xóa outlier bằng Isolation Forest dựa trên các đặc trưng số.
+
+    Parameters:
+        df: DataFrame đầu vào.
+        feature_cols: Danh sách cột số dùng để phát hiện outlier.
+                      Nếu None, tự động lấy tất cả cột numeric (trừ label_col nếu có).
+        contamination: Tỷ lệ outlier kỳ vọng (0.0-0.5).
+        random_state: Hạt giống ngẫu nhiên.
+        label_col: Tên cột nhãn (nếu có) – chỉ dùng để thống kê, không ảnh hưởng phát hiện.
+
+    Returns:
+        df_cleaned: DataFrame đã loại bỏ outlier.
+        report: dict với các thông tin số lượng outlier, tỷ lệ theo lớp (nếu có label_col).
+    """  # noqa: RUF002
+    if feature_cols is None:
+        # Mặc định lấy tất cả cột numeric, trừ cột nhãn
+        exclude = [label_col] if label_col else []
+        feature_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        feature_cols = [c for c in feature_cols if c not in exclude]
+        if not feature_cols:
+            raise ValueError(
+                "Không tìm thấy cột số nào để phát hiện outlier. Hãy chỉ định feature_cols."
+            )
+
+    X = df[feature_cols].fillna(0).values
+    iso_forest = IsolationForest(contamination=contamination, random_state=random_state)
+    preds = iso_forest.fit_predict(X)
+    outlier_mask = preds == -1  # True là outlier
+
+    report = {
+        "total_rows": len(df),
+        "outlier_count": outlier_mask.sum(),
+        "outlier_ratio": outlier_mask.mean(),
+        "outlier_removed_by_label": None,
+        "feature_cols_used": feature_cols,
+        "contamination_used": contamination,
+    }
+
+    if label_col and label_col in df.columns:
+        by_label = df.loc[outlier_mask, label_col].value_counts().to_dict()
+        report["outlier_removed_by_label"] = by_label
+
+    df_cleaned = df[~outlier_mask].copy()
     return df_cleaned, report
