@@ -37,7 +37,7 @@ def remove_mentions(text: str) -> str:
 
 def remove_emoji(text: str) -> str:
     """Xóa emoji."""
-    return emoji.replace_emoji(text, replace="")
+    return str(emoji.replace_emoji(text, replace=""))
 
 
 def remove_special_chars(text: str, keep_punctuation: str = r".,!?") -> str:
