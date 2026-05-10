@@ -73,24 +73,6 @@ def check_duplicates(df: pd.DataFrame, comment_col: str, label_col: str) -> dict
     }
 
 
-def check_dtype_consistency(
-    df: pd.DataFrame, expected_dtypes: dict[str, type] | None = None
-) -> dict:
-    """Kiểm tra đồng nhất kiểu dữ liệu trên cột."""
-    actual = df.dtypes.astype(str).reset_index()
-    actual.columns = ["column", "actual_dtype"]
-
-    if expected_dtypes is None:
-        expected_dtypes = {}
-
-    expected_series = pd.Series(expected_dtypes).astype(str)
-    actual["expected_dtype"] = actual["column"].map(expected_series)
-    actual["is_match"] = actual["actual_dtype"] == actual["expected_dtype"]
-    actual["is_match"] = actual["is_match"].fillna(True)
-
-    return {"dtype_report": actual}
-
-
 def check_column_names(df: pd.DataFrame, required_cols: list[str]) -> dict:
     """Kiểm tra cột bắt buộc có tồn tại hay không."""
     return {col: col in df.columns for col in required_cols}
