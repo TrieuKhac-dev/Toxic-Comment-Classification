@@ -16,6 +16,11 @@ Ví dụ:
 from __future__ import annotations
 
 import argparse
+import os
+import sys
+
+# Thêm thư mục gốc project vào sys.path để import được src
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.dataset.loader import download_local
 
@@ -39,7 +44,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    download_local(file_id=args.file_id, dest=args.dest)
+    try:
+        download_local(file_id=args.file_id, dest=args.dest)
+    except Exception as e:
+        print(f"\nLỗi: {e}")
+        print("Gợi ý:")
+        print(
+            "  - Kiểm tra --dest phải bao gồm tên file (vd: dataset/raw/raw_dataset.csv), không chỉ thư mục"
+        )
+        print("  - Kiểm tra file_id có đúng không")
+        print("  - Đảm bảo file trên Drive đã được chia sẻ public")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

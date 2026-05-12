@@ -46,7 +46,9 @@ def download_local(
     dest: str,
 ) -> None:
     """
-    [Dành cho local] Tải file từ Google Drive bằng file_id (dùng gdown).
+    [Dành cho local] Tải file từ Google Drive bằng file_id.
+
+    Thử dùng gdown trước, nếu lỗi thì fallback sang requests.
 
     Parameters
     ----------
@@ -55,6 +57,19 @@ def download_local(
     dest : str
         Đường dẫn đích để lưu file (ví dụ: 'dataset/raw/raw_dataset.csv').
     """
+    dst_path = Path(dest)
+    dst_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        _download_with_gdown(file_id, dst_path)
+    except Exception:
+        _download_with_requests(file_id, dst_path)
+
+    print(f"Đã tải file từ Google Drive về '{dest}'")
+
+
+def _download_with_gdown(file_id: str, dst_path: Path) -> None:
+    """Tải file bằng gdown."""
     try:
         import gdown
     except ImportError as err:
@@ -62,21 +77,41 @@ def download_local(
             "Thiếu thư viện 'gdown'. Vui lòng cài bằng: pip install gdown"
         ) from err
 
-    dst_path = Path(dest)
-    dst_path.parent.mkdir(parents=True, exist_ok=True)
-
     url = f"https://drive.google.com/uc?id={file_id}"
+    output = gdown.download(url, str(dst_path), quiet=False, use_cookies=False)
+    if output is None:
+        raise RuntimeError(f"gdown không thể tải file ID '{file_id}'.")
 
-    try:
-        output = gdown.download(url, str(dst_path), quiet=False)
-        if output is None:
-            raise ValueError(
-                f"Không thể tải file với ID '{file_id}'. "
-                "Kiểm tra lại ID hoặc quyền chia sẻ của file."
-            )
-        print(f"Đã tải file từ Google Drive về '{dest}'")
-    except Exception as err:
-        raise RuntimeError(f"Lỗi khi tải file từ Google Drive: {err}") from err
+
+def _download_with_requests(file_id: str, dst_path: Path) -> None:
+    """Tải file bằng requests (fallback khi gdown lỗi)."""
+    import re
+
+    import requests
+
+    session = requests.Session()
+    url = f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    response = session.get(url, stream=True)
+    response.raise_for_status()
+
+    # Tìm confirmation token nếu có warning page
+    confirm_token = None
+    for line in response.text.split("\n"):
+        match = re.search(r"confirm=([0-9A-Za-z_-]+)", line)
+        if match:
+            confirm_token = match.group(1)
+            break
+
+    if confirm_token:
+        url = f"https://drive.google.com/uc?export=download&confirm={confirm_token}&id={file_id}"
+        response = session.get(url, stream=True)
+        response.raise_for_status()
+
+    with open(dst_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=32768):
+            if chunk:
+                f.write(chunk)
 
 
 def _copy(source: str, dest: str) -> None:

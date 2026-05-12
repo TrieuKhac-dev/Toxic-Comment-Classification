@@ -152,16 +152,13 @@ def main():
 
     dup_info = report["duplicate_check"]
 
-    print(f"Duplicated rows: " f"{dup_info['total_duplicated_rows']}")
+    print(f"Duplicated rows: {dup_info['total_duplicated_rows']}")
 
-    print(f"Mixed-label duplicates: " f"{dup_info['mixed_label_comments_count']}")
+    print(f"Mixed-label duplicates: {dup_info['mixed_label_comments_count']}")
 
-    print(f"Null ratio: " f"{report['null_check']['null_ratio']:.4f}")
+    print(f"Null ratio: {report['null_check']['null_ratio']:.4f}")
 
-    print(
-        f"Empty comments: "
-        f"{report['empty_or_no_letter_check'].get('empty_count', 0)}"
-    )
+    print(f"Empty comments: {report['empty_or_no_letter_check'].get('empty_count', 0)}")
 
     print("\n[INFO] Reports saved:")
     print(json_path)
