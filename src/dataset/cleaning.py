@@ -1,21 +1,11 @@
 import html
 import re
-import unicodedata
+from typing import Any
 
 import emoji
+import numpy as np
 import pandas as pd
-
-
-def normalize_text(text: str, lower: bool = True, strip_spaces: bool = True) -> str:
-    """Chuẩn hóa Unicode NFC, lowercase, loại bỏ khoảng trắng thừa."""
-    text = str(text)
-    text = unicodedata.normalize("NFC", text)
-    if lower:
-        text = text.lower()
-    if strip_spaces:
-        text = text.strip()
-        text = re.sub(r"\s+", " ", text)
-    return text
+from sklearn.ensemble import IsolationForest
 
 
 def remove_html_and_entities(text: str) -> str:
@@ -43,19 +33,10 @@ def remove_emoji(text: str) -> str:
 def remove_special_chars(text: str, keep_punctuation: str = r".,!?") -> str:
     """Chỉ giữ chữ, số, khoảng trắng và các dấu câu trong keep."""
     keep_pattern = re.escape(keep_punctuation)
-    pattern = r"[^\w\s" + keep_pattern + r"]"
+    pattern = rf"[^0-9A-Za-zÀ-ỹ\s{keep_pattern}]"
     text = re.sub(pattern, " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
-
-
-def remove_stopwords(text: str, stopwords: list[str]) -> str:
-    """Loại bỏ stopwords (dùng split đơn giản)."""
-    if not text:
-        return ""
-    tokens = text.split()
-    filtered = [t for t in tokens if t not in stopwords]
-    return " ".join(filtered)
 
 
 def remove_null_or_empty(
@@ -65,60 +46,79 @@ def remove_null_or_empty(
     max_null_label_ratio: float = 0.05,
 ) -> tuple[pd.DataFrame, dict]:
     """
-    Xóa dòng nếu comment rỗng hoặc nhãn bị null (nếu tỷ lệ null cho phép).
+    Xóa dòng nếu comment:
+    - null/NaN
+    - rỗng
+    - chỉ chứa khoảng trắng
+
+    Đồng thời kiểm tra null label.
     """
-    report = {
+    report: dict[str, int | float | None] = {
         "empty_comment_removed": 0,
         "null_label_removed": 0,
         "null_label_ratio_original": None,
         "final_rows": 0,
     }
-    # Xóa comment rỗng
-    mask_not_empty = df[comment_col].astype(str).apply(lambda x: len(x.strip()) > 0)
-    removed_empty = (~mask_not_empty).sum()
-    report["empty_comment_removed"] = removed_empty
-    df_temp = df[mask_not_empty].copy()
-
-    # Xóa nhãn null
+    comment_series = df[comment_col]
+    mask_valid_comment = comment_series.notna() & comment_series.astype(
+        str
+    ).str.strip().ne("")
+    removed_empty = (~mask_valid_comment).sum()
+    report["empty_comment_removed"] = int(removed_empty)
+    df_temp = df.loc[mask_valid_comment].copy()
     null_label_mask = df_temp[label_col].isna()
-    null_ratio = null_label_mask.mean()
+    null_ratio = float(null_label_mask.mean())
     report["null_label_ratio_original"] = null_ratio
     if null_ratio > max_null_label_ratio:
         raise ValueError(
-            f"Tỷ lệ null trong nhãn ({null_ratio:.2%}) vượt quá ngưỡng {max_null_label_ratio:.0%}"
+            f"Tỷ lệ null trong nhãn ({null_ratio:.2%}) "
+            f"vượt quá ngưỡng {max_null_label_ratio:.0%}"
         )
-    removed_null = null_label_mask.sum()
+    removed_null = int(null_label_mask.sum())
     report["null_label_removed"] = removed_null
-    df_temp = df_temp[~null_label_mask].copy()
+    df_temp = df_temp.loc[~null_label_mask].copy()
     report["final_rows"] = len(df_temp)
     return df_temp, report
 
 
 def remove_non_text_comments(
-    df: pd.DataFrame, comment_col: str = "comment"
+    df: pd.DataFrame,
+    comment_col: str = "comment",
 ) -> tuple[pd.DataFrame, dict]:
     """
-    Xóa những comment không chứa chữ cái (toàn số, ký tự đặc biệt hoặc emoji).
+    Xóa comment không chứa ký tự chữ cái.
+    Ví dụ:
+    - "12345"
+    - "!!!"
+    - "😂😂😂"
     """
-    report = {"non_text_removed": 0, "final_rows": 0}
-    # Regex kiểm tra có ít nhất một ký tự chữ cái Unicode
+    report = {
+        "non_text_removed": 0,
+        "final_rows": 0,
+    }
     has_letter = (
-        df[comment_col].astype(str).apply(lambda x: bool(re.search(r"\p{L}", x)))
+        df[comment_col].fillna("").astype(str).str.contains(r"[A-Za-zÀ-ỹ]", regex=True)
     )
-    removed_non_text = (~has_letter).sum()
+    removed_non_text = int((~has_letter).sum())
     report["non_text_removed"] = removed_non_text
-    df_cleaned = df[has_letter].copy()
+    df_cleaned = df.loc[has_letter].copy()
     report["final_rows"] = len(df_cleaned)
     return df_cleaned, report
 
 
 def remove_duplicate_comments(
-    df: pd.DataFrame, comment_col: str = "comment", label_col: str = "is_toxic"
+    df: pd.DataFrame,
+    comment_col: str = "comment",
+    label_col: str = "is_toxic",
 ) -> tuple[pd.DataFrame, dict]:
     """
-    Xóa duplicate:
-    - Cùng nhãn: giữ lại một.
-    - Khác nhãn: xóa tất cả các bản sao.
+    Xử lý duplicate comment:
+
+    - Nếu cùng comment + cùng label:
+        -> giữ dòng đầu
+
+    - Nếu cùng comment nhưng khác label:
+        -> xóa toàn bộ group
     """
     report = {
         "duplicate_comment_groups": 0,
@@ -126,27 +126,82 @@ def remove_duplicate_comments(
         "removed_rows_duplicate_same_label": 0,
         "kept_rows": 0,
     }
-    keep_mask = []
-    grouped = df.groupby(comment_col)
+    keep_indices = []
     total_removed_different = 0
     total_removed_same = 0
+    duplicate_groups = 0
+    grouped = df.groupby(comment_col, sort=False)
     for _, group in grouped:
         if len(group) == 1:
-            keep_mask.append(True)
+            keep_indices.extend(group.index.tolist())
             continue
-        labels = group[label_col].unique()
+        duplicate_groups += 1
+        labels = group[label_col].dropna().unique()
+        # Different labels -> remove all
         if len(labels) > 1:
-            keep_mask.extend([False] * len(group))
             total_removed_different += len(group)
+        # Same label -> keep first
         else:
-            keep_mask.append(True)  # giữ dòng đầu
-            keep_mask.extend([False] * (len(group) - 1))
+            first_idx = group.index[0]
+            keep_indices.append(first_idx)
             total_removed_same += len(group) - 1
-    df_cleaned = df[keep_mask].copy()
+    df_cleaned = df.loc[keep_indices].copy()
+    report["duplicate_comment_groups"] = duplicate_groups
     report["removed_rows_different_labels"] = total_removed_different
     report["removed_rows_duplicate_same_label"] = total_removed_same
-    report["duplicate_comment_groups"] = (
-        len(grouped) - df_cleaned[comment_col].nunique()
-    )
     report["kept_rows"] = len(df_cleaned)
+    return df_cleaned, report
+
+
+def remove_outliers(
+    df: pd.DataFrame,
+    feature_cols: list[str] | None = None,
+    contamination: float = 0.05,
+    random_state: int = 42,
+    label_col: str | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """
+    Xóa outlier bằng Isolation Forest dựa trên các đặc trưng số.
+
+    Parameters:
+        df: DataFrame đầu vào.
+        feature_cols: Danh sách cột số dùng để phát hiện outlier.
+                      Nếu None, tự động lấy tất cả cột numeric (trừ label_col nếu có).
+        contamination: Tỷ lệ outlier kỳ vọng (0.0-0.5).
+        random_state: Hạt giống ngẫu nhiên.
+        label_col: Tên cột nhãn (nếu có) – chỉ dùng để thống kê, không ảnh hưởng phát hiện.
+
+    Returns:
+        df_cleaned: DataFrame đã loại bỏ outlier.
+        report: dict với các thông tin số lượng outlier, tỷ lệ theo lớp (nếu có label_col).
+    """  # noqa: RUF002
+    if feature_cols is None:
+        # Mặc định lấy tất cả cột numeric, trừ cột nhãn
+        exclude = [label_col] if label_col else []
+        feature_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        feature_cols = [c for c in feature_cols if c not in exclude]
+        if not feature_cols:
+            raise ValueError(
+                "Không tìm thấy cột số nào để phát hiện outlier. Hãy chỉ định feature_cols."
+            )
+
+    X = df[feature_cols].fillna(0).values
+    iso_forest = IsolationForest(contamination=contamination, random_state=random_state)
+    preds = iso_forest.fit_predict(X)
+    outlier_mask = preds == -1  # True là outlier
+
+    report = {
+        "total_rows": len(df),
+        "outlier_count": outlier_mask.sum(),
+        "outlier_ratio": outlier_mask.mean(),
+        "outlier_removed_by_label": None,
+        "feature_cols_used": feature_cols,
+        "contamination_used": contamination,
+    }
+
+    if label_col and label_col in df.columns:
+        by_label = df.loc[outlier_mask, label_col].value_counts().to_dict()
+        report["outlier_removed_by_label"] = by_label
+
+    df_cleaned = df[~outlier_mask].copy()
     return df_cleaned, report
