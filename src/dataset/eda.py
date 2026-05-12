@@ -1,6 +1,6 @@
 """
 Script phân tích khám phá dữ liệu (EDA) cho bài toán phân loại bình luận.
-Tận dụng các hàm từ cleaning.py và validation.py để xử lý văn bản và kiểm tra chất lượng.
+Tận dụng các hàm từ cleaning.py và preprocessing.py.
 """
 
 from collections import Counter
@@ -10,13 +10,17 @@ import emoji
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import stopwordsiso
 from nltk import ngrams
 from sklearn.ensemble import IsolationForest
-from underthesea import pos_tag, word_tokenize
+from underthesea import pos_tag
 from wordcloud import WordCloud
 
-from src.dataset.cleaning import normalize_text, remove_special_chars
+from src.dataset.cleaning import remove_special_chars
+from src.dataset.preprocessing import (
+    filter_stopwords,
+    get_tokenizer,
+    normalize_text,
+)
 
 
 # ----------------------------------------------------------------------
@@ -47,12 +51,12 @@ def plot_label_distribution(
 # ----------------------------------------------------------------------
 def add_length_features(df: pd.DataFrame, comment_col: str) -> pd.DataFrame:
     """
-    Thêm cột char_len (số ký tự) và word_len (số từ dùng underthesea).
+    Thêm cột char_len (số ký tự) và word_len (số từ dùng tokenizer mặc định).
     """
 
     def count_words(text):
-        tokens = word_tokenize(str(text))
-        return len(tokens)
+        tokenizer = get_tokenizer()
+        return len(tokenizer(str(text)))
 
     df = df.copy()
     df["char_len"] = df[comment_col].astype(str).apply(len)
@@ -157,30 +161,30 @@ def detect_outliers_isolation_forest(
 # ----------------------------------------------------------------------
 # 5. Tiền xử lý văn bản (token, stopwords)
 # ----------------------------------------------------------------------
-def load_vietnamese_stopwords() -> set:
-    """Tải stopwords tiếng Việt từ stopwordsiso."""
-    return set(stopwordsiso.stopwords("vi"))
-
-
 def preprocess_text_for_eda(
     text: str,
-    stopwords: set,
-    keep_punctuation: str = "",  # mặc định không giữ dấu câu nào (xóa hết)
+    stopwords: set[str] | None = None,
+    keep_punctuation: str = "",
 ) -> list[str]:
     """
-    Chuẩn hóa, loại bỏ dấu câu, tokenize bằng underthesea, loại stopwords.
-    Tận dụng cleaning.normalize_text và cleaning.remove_special_chars.
+    Chuẩn hóa, loại bỏ dấu câu, tokenize bằng tokenizer mặc định, loại stopwords.
+    Nếu stopwords=None, dùng stopwords mặc định từ preprocessing.
     """
     text = normalize_text(text, lower=True, strip_spaces=True)
-    # Xóa các ký tự đặc biệt, chỉ giữ chữ và số
     text = remove_special_chars(text, keep_punctuation=keep_punctuation)
-    tokens = word_tokenize(text)
-    tokens = [t for t in tokens if t not in stopwords]
-    return tokens
+    tokenizer = get_tokenizer()
+    tokens = tokenizer(text)
+    result = filter_stopwords(tokens, stopwords=stopwords, return_tokens=True)
+    if isinstance(result, list):
+        return result
+    return list(result) if isinstance(result, str) else []
 
 
 def add_tokens_column(
-    df: pd.DataFrame, comment_col: str, stopwords: set, keep_punctuation: str = ""
+    df: pd.DataFrame,
+    comment_col: str,
+    stopwords: set[str] | None = None,
+    keep_punctuation: str = "",
 ) -> pd.DataFrame:
     """Thêm cột 'tokens' chứa list token đã xử lý."""
     df = df.copy()
