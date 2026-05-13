@@ -149,6 +149,8 @@ def preprocess_text_for_eda(
     text: str,
     stopwords: set[str] | None = None,
     keep_punctuation: str = "",
+    lower: bool = True,
+    strip_spaces: bool = True,
 ) -> list[str]:
     """
     Chuẩn hóa, loại bỏ dấu câu, tokenize bằng tokenizer mặc định, loại stopwords.
@@ -162,13 +164,17 @@ def preprocess_text_for_eda(
         Tập stopwords. Nếu None, dùng stopwords mặc định từ preprocessing.
     keep_punctuation : str
         Dấu câu muốn giữ lại (mặc định: '').
+    lower : bool
+        Có chuyển về lowercase không (mặc định: True).
+    strip_spaces : bool
+        Có xóa khoảng trắng thừa không (mặc định: True).
 
     Returns
     -------
     list[str]
         Danh sách token đã xử lý.
     """
-    text = normalize_text(text, lower=True, strip_spaces=True)
+    text = normalize_text(text, lower=lower, strip_spaces=strip_spaces)
     text = remove_special_chars(text, keep_punctuation=keep_punctuation)
     tokenizer = get_tokenizer()
     tokens = tokenizer(text)

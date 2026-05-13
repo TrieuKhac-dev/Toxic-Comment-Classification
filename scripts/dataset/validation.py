@@ -7,9 +7,7 @@ Cách dùng:
     python scripts/dataset/validation.py --input <INPUT_CSV>
 
 Tuỳ chỉnh validation:
-    Mở file này, sửa trực tiếp trong hàm main() để:
-    - Bật/tắt các bước kiểm tra (column check, null check, ...)
-    - Thay đổi tên cột, encoding, ...
+    Sửa trực tiếp trong hàm main() để override config.
 """
 
 from __future__ import annotations
@@ -23,13 +21,9 @@ from pathlib import Path
 # Thêm thư mục gốc project vào sys.path để import được src
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
+from config.validation_config import default_validation_config
 from src.dataset.loader import read_csv_with_columns
-from src.dataset.validation import (
-    check_column_names,
-    check_duplicates,
-    check_empty_or_no_letter,
-    check_null,
-)
+from src.pipeline.validation_pipeline import validate_dataset
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,49 +79,28 @@ def main() -> None:
     # ==========================================================
     # [TUỲ CHỈNH] Cấu hình validation
     # ==========================================================
-    # Tên cột
-    comment_col = "comment"
-    label_col = "is_toxic"
-
-    # Encoding file CSV
-    encoding = "utf-8"
-
-    # Các cột bắt buộc (None = bỏ qua kiểm tra)
-    required_cols = None  # Ví dụ: ["comment", "is_toxic"]
-
-    # Bật/tắt các bước kiểm tra
-    enable_column_check = True
-    enable_null_check = True
-    enable_empty_or_no_letter_check = True
-    enable_duplicate_check = True
+    validation_config = default_validation_config.override(
+        # Ví dụ override:
+        # comment_col="comment",
+        # label_col="is_toxic",
+        # required_cols=["comment", "is_toxic"],
+        # enable_column_check=True,
+        # enable_null_check=True,
+        # enable_empty_or_no_letter_check=True,
+        # enable_duplicate_check=True,
+    )
     # ==========================================================
 
     # Load dataset
     df = read_csv_with_columns(
         args.input,
-        comment_col=comment_col,
-        label_col=label_col,
-        encoding=encoding,
+        comment_col=validation_config.comment_col,
+        label_col=validation_config.label_col,
+        encoding=validation_config.encoding,
     )
 
-    # Validation pipeline
-    report = {}
-
-    if enable_column_check and required_cols:
-        report["column_check"] = check_column_names(df, required_cols)
-
-    if enable_null_check:
-        report["null_check"] = check_null(df)
-
-    if enable_empty_or_no_letter_check:
-        report["empty_or_no_letter_check"] = check_empty_or_no_letter(
-            df, col=comment_col
-        )
-
-    if enable_duplicate_check:
-        report["duplicate_check"] = check_duplicates(
-            df, comment_col=comment_col, label_col=label_col
-        )
+    # Validation pipeline (từ src/pipeline)
+    report = validate_dataset(df, validation_config=validation_config)
 
     # Save outputs
     output_dir = Path(args.output_dir)

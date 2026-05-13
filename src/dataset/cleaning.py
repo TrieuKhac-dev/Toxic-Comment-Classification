@@ -1,3 +1,11 @@
+"""
+cleaning.py
+
+Các hàm làm sạch dữ liệu văn bản bình luận.
+Bao gồm: xóa HTML, URL, mentions, emoji, ký tự đặc biệt,
+xóa null/empty, non-text, duplicate, và outlier detection.
+"""
+
 import html
 import re
 from typing import Any

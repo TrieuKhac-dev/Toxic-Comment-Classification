@@ -1,3 +1,10 @@
+"""
+validation.py
+
+Các hàm kiểm tra chất lượng dữ liệu (data validation).
+Bao gồm: kiểm tra null, empty/no-letter, duplicates, mixed-label, column names.
+"""
+
 import pandas as pd
 
 from src.dataset.preprocessing import normalize_text

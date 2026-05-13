@@ -1,12 +1,15 @@
+"""
+preprocessing.py
+
+Các hàm tiền xử lý văn bản (text preprocessing).
+Bao gồm: chuẩn hóa (lower, strip), tokenize, loại bỏ stopwords,
+và các hàm tiện ích liên quan.
+"""
+
 import re
 import unicodedata
 from collections.abc import Callable
 from typing import cast
-
-from config.preprocessing_config import (
-    PreprocessingConfig,
-    default_preprocessing_config,
-)
 
 
 def _get_default_tokenizer() -> Callable[[str], list[str]]:
@@ -34,27 +37,51 @@ def _get_default_stopwords() -> set[str]:
 
 
 def get_tokenizer(
-    config: PreprocessingConfig | None = None,
+    tokenizer: Callable[[str], list[str]] | None = None,
 ) -> Callable[[str], list[str]]:
-    cfg = config or default_preprocessing_config
-    return cfg.tokenizer or _get_default_tokenizer()
+    """
+    Lấy tokenizer. Nếu tokenizer được truyền thì dùng, nếu không dùng default.
+
+    Parameters
+    ----------
+    tokenizer : Callable | None
+        Tokenizer tuỳ chỉnh (mặc định: None -> dùng underthesea).
+
+    Returns
+    -------
+    Callable[[str], list[str]]
+        Hàm tokenize.
+    """
+    if tokenizer is not None:
+        return tokenizer
+    return _get_default_tokenizer()
 
 
-def get_stopwords(config: PreprocessingConfig | None = None) -> set[str]:
-    cfg = config or default_preprocessing_config
-    return cfg.stopwords or _get_default_stopwords()
+def get_stopwords(stopwords: set[str] | None = None) -> set[str]:
+    """
+    Lấy stopwords. Nếu stopwords được truyền thì dùng, nếu không dùng default.
+
+    Parameters
+    ----------
+    stopwords : set[str] | None
+        Tập stopwords tuỳ chỉnh (mặc định: None -> dùng stopwordsiso).
+
+    Returns
+    -------
+    set[str]
+        Tập stopwords.
+    """
+    if stopwords is not None:
+        return stopwords
+    return _get_default_stopwords()
 
 
 def normalize_text(
     text: str,
-    lower: bool | None = None,
-    strip_spaces: bool | None = None,
-    config: PreprocessingConfig | None = None,
+    lower: bool = True,
+    strip_spaces: bool = True,
 ) -> str:
-    cfg = config or default_preprocessing_config
-    lower = cfg.normalize_lower if lower is None else lower
-    strip_spaces = cfg.normalize_strip_spaces if strip_spaces is None else strip_spaces
-
+    """Chuẩn hóa văn bản: NFC normalize, lowercase, strip spaces."""
     text = unicodedata.normalize("NFC", str(text))
     if lower:
         text = text.lower()
@@ -66,13 +93,10 @@ def normalize_text(
 def filter_stopwords(
     tokens: list[str],
     stopwords: set[str] | None = None,
-    return_tokens: bool | None = None,
-    config: PreprocessingConfig | None = None,
+    return_tokens: bool = True,
 ) -> list[str] | str:
-    cfg = config or default_preprocessing_config
+    """Lọc stopwords khỏi danh sách token."""
     if stopwords is None:
-        stopwords = get_stopwords(cfg)
-    return_tokens = return_tokens if return_tokens is not None else cfg.return_tokens
-
+        stopwords = _get_default_stopwords()
     filtered = [t for t in tokens if t not in stopwords]
     return filtered if return_tokens else " ".join(filtered)

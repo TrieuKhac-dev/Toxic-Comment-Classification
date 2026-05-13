@@ -7,11 +7,7 @@ from config.base_config import BaseConfig
 class CleaningConfig(BaseConfig["CleaningConfig"]):
     """Cấu hình cho các bước làm sạch dữ liệu."""
 
-    # --- Tham số normalize_text ---
-    normalize_lower: bool = True
-    normalize_strip_spaces: bool = True
-
-    # --- Tham số khác ---
+    # --- Tham số cleaning text ---
     keep_punctuation: str = r".,!?"
     max_null_label_ratio: float = 0.05
 

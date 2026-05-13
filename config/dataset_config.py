@@ -10,7 +10,7 @@ class DatasetConfig(BaseConfig["DatasetConfig"]):
 
     # --- Tên cột ---
     comment_col: str = "comment"
-    label_col: str = "is_violation"
+    label_col: str = "is_toxic"
 
     # --- Metadata ---
     description: str = ""
