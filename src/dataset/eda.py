@@ -1,12 +1,12 @@
 """
 Script phân tích khám phá dữ liệu (EDA) cho bài toán phân loại bình luận.
-Tận dụng các hàm từ cleaning.py và preprocessing.py.
+Chứa các hàm vẽ biểu đồ, phân tích, và các hàm EDA thuần túy.
+Các hàm tạo đặc trưng (feature engineering) được chuyển sang feature_engineering.py.
 """
 
 from collections import Counter
 from typing import Any
 
-import emoji
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -16,6 +16,7 @@ from underthesea import pos_tag
 from wordcloud import WordCloud
 
 from src.dataset.cleaning import remove_special_chars
+from src.dataset.feature_enginering import add_ttr_column
 from src.dataset.preprocessing import (
     filter_stopwords,
     get_tokenizer,
@@ -47,29 +48,14 @@ def plot_label_distribution(
 
 
 # ----------------------------------------------------------------------
-# 2. Đặc trưng độ dài
+# 2. Vẽ phân bố độ dài
 # ----------------------------------------------------------------------
-def add_length_features(df: pd.DataFrame, comment_col: str) -> pd.DataFrame:
-    """
-    Thêm cột char_len (số ký tự) và word_len (số từ dùng tokenizer mặc định).
-    """
-
-    def count_words(text):
-        tokenizer = get_tokenizer()
-        return len(tokenizer(str(text)))
-
-    df = df.copy()
-    df["char_len"] = df[comment_col].astype(str).apply(len)
-    df["word_len"] = df[comment_col].apply(count_words)
-    return df
-
-
 def plot_length_distribution(
     df: pd.DataFrame, figsize: tuple[int, int] = (14, 5), save_path: str | None = None
 ) -> plt.Figure:
     """
     Vẽ histogram phân bố số ký tự và số từ.
-    Cần DataFrame có cột 'char_len' và 'word_len'.
+    Cần DataFrame có cột 'char_len' và 'word_len' (tạo từ feature_engineering.add_length_features).
     """
     fig, axes = plt.subplots(1, 2, figsize=figsize)
     sns.histplot(df["char_len"], bins=50, kde=True, ax=axes[0])
@@ -101,24 +87,7 @@ def plot_length_boxplot_by_label(
 
 
 # ----------------------------------------------------------------------
-# 3. Đặc trưng dấu câu, chữ hoa, emoji
-# ----------------------------------------------------------------------
-def add_punctuation_emoji_features(df: pd.DataFrame, comment_col: str) -> pd.DataFrame:
-    """
-    Thêm các cột: num_exclamation, num_question, num_upper, num_emoji.
-    """
-    df = df.copy()
-    df["num_exclamation"] = df[comment_col].str.count("!")
-    df["num_question"] = df[comment_col].str.count(r"\?")
-    df["num_upper"] = df[comment_col].str.count(r"[A-Z]")
-    df["num_emoji"] = df[comment_col].apply(
-        lambda x: sum(1 for _ in emoji.emoji_list(str(x)))
-    )
-    return df
-
-
-# ----------------------------------------------------------------------
-# 4. Phát hiện outlier bằng Isolation Forest
+# 3. Phát hiện outlier bằng Isolation Forest (EDA)
 # ----------------------------------------------------------------------
 def detect_outliers_isolation_forest(
     df: pd.DataFrame,
@@ -128,11 +97,26 @@ def detect_outliers_isolation_forest(
     label_col: str | None = None,
 ) -> tuple[pd.Series, plt.Figure]:
     """
-    Phát hiện outlier bằng Isolation Forest.
+    Phát hiện outlier bằng Isolation Forest và vẽ biểu đồ phân bố theo lớp.
 
-    Returns:
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame chứa các cột đặc trưng số.
+    feature_cols : list[str]
+        Danh sách tên cột đặc trưng dùng để phát hiện outlier.
+    contamination : float
+        Tỷ lệ outlier kỳ vọng (mặc định: 0.05).
+    random_state : int
+        Random state cho Isolation Forest (mặc định: 42).
+    label_col : str | None
+        Tên cột nhãn để vẽ biểu đồ phân bố outlier theo lớp.
+
+    Returns
+    -------
+    tuple[pd.Series, plt.Figure]
         outlier_mask: Series boolean (True nếu là outlier)
-        fig: Figure biểu đồ phân bố outlier theo lớp (nếu có label_col)
+        fig: Figure biểu đồ phân bố outlier theo lớp
     """
     X = df[feature_cols].fillna(0)
     iso_forest = IsolationForest(contamination=contamination, random_state=random_state)
@@ -159,7 +143,7 @@ def detect_outliers_isolation_forest(
 
 
 # ----------------------------------------------------------------------
-# 5. Tiền xử lý văn bản (token, stopwords)
+# 4. Tiền xử lý văn bản cho EDA (token, stopwords)
 # ----------------------------------------------------------------------
 def preprocess_text_for_eda(
     text: str,
@@ -168,7 +152,21 @@ def preprocess_text_for_eda(
 ) -> list[str]:
     """
     Chuẩn hóa, loại bỏ dấu câu, tokenize bằng tokenizer mặc định, loại stopwords.
-    Nếu stopwords=None, dùng stopwords mặc định từ preprocessing.
+    Hàm này phục vụ EDA, không phải feature engineering.
+
+    Parameters
+    ----------
+    text : str
+        Văn bản đầu vào.
+    stopwords : set[str] | None
+        Tập stopwords. Nếu None, dùng stopwords mặc định từ preprocessing.
+    keep_punctuation : str
+        Dấu câu muốn giữ lại (mặc định: '').
+
+    Returns
+    -------
+    list[str]
+        Danh sách token đã xử lý.
     """
     text = normalize_text(text, lower=True, strip_spaces=True)
     text = remove_special_chars(text, keep_punctuation=keep_punctuation)
@@ -180,35 +178,9 @@ def preprocess_text_for_eda(
     return list(result) if isinstance(result, str) else []
 
 
-def add_tokens_column(
-    df: pd.DataFrame,
-    comment_col: str,
-    stopwords: set[str] | None = None,
-    keep_punctuation: str = "",
-) -> pd.DataFrame:
-    """Thêm cột 'tokens' chứa list token đã xử lý."""
-    df = df.copy()
-    df["tokens"] = df[comment_col].apply(
-        lambda x: preprocess_text_for_eda(x, stopwords, keep_punctuation)
-    )
-    return df
-
-
 # ----------------------------------------------------------------------
-# 6. Type-Token Ratio (TTR)
+# 5. Type-Token Ratio (TTR) — vẽ biểu đồ
 # ----------------------------------------------------------------------
-def calculate_ttr(tokens: list[str]) -> float:
-    if not tokens:
-        return 0.0
-    return len(set(tokens)) / len(tokens)
-
-
-def add_ttr_column(df: pd.DataFrame, tokens_col: str = "tokens") -> pd.DataFrame:
-    df = df.copy()
-    df["ttr"] = df[tokens_col].apply(calculate_ttr)
-    return df
-
-
 def plot_ttr_boxplot_by_label(
     df: pd.DataFrame,
     label_col: str,
@@ -218,6 +190,7 @@ def plot_ttr_boxplot_by_label(
 ) -> plt.Figure:
     """
     Boxplot so sánh TTR giữa các lớp.
+    Cần DataFrame có cột 'tokens'.
     """
     df_temp = add_ttr_column(df, tokens_col)
     fig, ax = plt.subplots(figsize=figsize)
@@ -231,7 +204,7 @@ def plot_ttr_boxplot_by_label(
 
 
 # ----------------------------------------------------------------------
-# 7. So sánh POS tags giữa các lớp
+# 6. So sánh POS tags giữa các lớp
 # ----------------------------------------------------------------------
 def compare_pos_tags(
     df: pd.DataFrame,
@@ -361,13 +334,27 @@ def compare_pos_tags(
 
 
 # ----------------------------------------------------------------------
-# 8. Từ xuất hiện nhiều nhất theo document frequency
+# 7. Từ xuất hiện nhiều nhất theo document frequency
 # ----------------------------------------------------------------------
 def get_top_tokens_by_document_frequency(
     df: pd.DataFrame, tokens_col: str = "tokens", top_n: int = 100
 ) -> list[tuple[str, int]]:
     """
     Đếm số document (bình luận) chứa mỗi token, trả về top_n.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame chứa cột tokens.
+    tokens_col : str
+        Tên cột chứa list token.
+    top_n : int
+        Số lượng token muốn lấy.
+
+    Returns
+    -------
+    list[tuple[str, int]]
+        Danh sách (token, số_document) sắp xếp giảm dần.
     """
     token_doc_count: Counter = Counter()
     for tokens in df[tokens_col]:
@@ -377,7 +364,7 @@ def get_top_tokens_by_document_frequency(
 
 
 # ----------------------------------------------------------------------
-# 9. Word Cloud
+# 8. Word Cloud
 # ----------------------------------------------------------------------
 def plot_wordcloud(
     df: pd.DataFrame,
@@ -388,6 +375,7 @@ def plot_wordcloud(
 ) -> plt.Figure:
     """
     Vẽ word cloud từ tất cả token.
+    Cần DataFrame có cột 'tokens'.
     """
     all_tokens = [token for tokens in df[tokens_col] for token in tokens]
     text = " ".join(all_tokens)
@@ -409,13 +397,29 @@ def plot_wordcloud(
 
 
 # ----------------------------------------------------------------------
-# 10. N-grams
+# 9. N-grams
 # ----------------------------------------------------------------------
 def get_top_ngrams(
     df: pd.DataFrame, tokens_col: str = "tokens", n: int = 2, top_n: int = 100
 ) -> list[tuple[tuple[str, ...], int]]:
     """
     Lấy top n-grams phổ biến nhất từ toàn bộ dữ liệu.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame chứa cột tokens.
+    tokens_col : str
+        Tên cột chứa list token.
+    n : int
+        Số lượng từ trong một n-gram (2 = bigram, 3 = trigram).
+    top_n : int
+        Số lượng n-grams muốn lấy.
+
+    Returns
+    -------
+    list[tuple[tuple[str, ...], int]]
+        Danh sách ((token1, token2, ...), tần_suất).
     """
     all_tokens = [token for tokens in df[tokens_col] for token in tokens]
     ngrams_list = list(ngrams(all_tokens, n))
@@ -432,6 +436,24 @@ def get_top_ngrams_by_label(
 ) -> dict[Any, list[tuple[tuple[str, ...], int]]]:
     """
     Lấy top n-grams riêng cho từng lớp.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame chứa cột tokens và label.
+    label_col : str
+        Tên cột nhãn.
+    tokens_col : str
+        Tên cột chứa list token.
+    n : int
+        Số lượng từ trong một n-gram.
+    top_n : int
+        Số lượng n-grams muốn lấy mỗi lớp.
+
+    Returns
+    -------
+    dict[Any, list[tuple[tuple[str, ...], int]]]
+        Dict mapping label -> list of ((token1, ...), frequency).
     """
     result = {}
     for label in df[label_col].unique():
@@ -444,7 +466,7 @@ def get_top_ngrams_by_label(
 
 
 # ----------------------------------------------------------------------
-# 11. Từ đặc trưng theo tỷ lệ tần suất giữa hai lớp
+# 10. Từ đặc trưng theo tỷ lệ tần suất giữa hai lớp
 # ----------------------------------------------------------------------
 def get_ratio_features(
     df: pd.DataFrame, label_col: str, tokens_col: str = "tokens"
@@ -452,7 +474,20 @@ def get_ratio_features(
     """
     Tính tỷ lệ (tần suất trong lớp 1 + 1) / (tần suất trong lớp 0 + 1).
     Giả sử chỉ có 2 lớp (0: normal, 1: violent).
-    Trả về:
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame chứa cột tokens và label.
+    label_col : str
+        Tên cột nhãn.
+    tokens_col : str
+        Tên cột chứa list token.
+
+    Returns
+    -------
+    tuple[list[tuple[str, float]], list[tuple[str, float]]]
+        (top_violent, top_normal):
         - top_violent: 100 từ có tỷ lệ cao nhất (đặc trưng cho lớp vi phạm)
         - top_normal: 100 từ có tỷ lệ thấp nhất (đặc trưng cho lớp bình thường)
     """
