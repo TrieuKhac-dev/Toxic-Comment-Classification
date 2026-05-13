@@ -1,13 +1,34 @@
+"""
+cleaning.py
+
+Script CLI để làm sạch dataset toxic comment.
+
+Cách dùng:
+    python scripts/dataset/cleaning.py --input <INPUT_CSV> --output <OUTPUT_CSV>
+
+Tuỳ chỉnh pipeline:
+    Mở file này, sửa trực tiếp trong hàm main() để:
+    - Bật/tắt các bước cleaning (outlier, duplicate, non-text filter, ...)
+    - Thay đổi tham số (keep_punctuation, max_null_label_ratio, ...)
+    - Cung cấp file stopwords riêng
+"""
+
+from __future__ import annotations
+
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 
 import pandas as pd
 
+# Thêm thư mục gốc project vào sys.path để import được src
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+
 from config.cleaning_config import default_cleaning_config
 from config.dataset_config import default_dataset_config
 from src.dataset.cleaning import (
-    normalize_text,
     remove_duplicate_comments,
     remove_emoji,
     remove_html_and_entities,
@@ -16,99 +37,30 @@ from src.dataset.cleaning import (
     remove_null_or_empty,
     remove_outliers,
     remove_special_chars,
-    remove_stopwords,
     remove_urls,
 )
+from src.dataset.loader import read_csv_with_columns
+from src.dataset.preprocessing import filter_stopwords, normalize_text
 from src.dataset.validation import check_column_names
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Clean toxic comment dataset")
-
-    parser.add_argument("--input", required=True, help="Path to raw CSV file")
-    parser.add_argument("--output", required=True, help="Path to cleaned CSV file")
+    parser = argparse.ArgumentParser(description="Làm sạch dataset toxic comment.")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Đường dẫn file CSV đầu vào.",
+    )
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Đường dẫn file CSV đầu ra (đã làm sạch).",
+    )
     parser.add_argument(
         "--report",
         default=None,
-        help="Path to cleaning report JSON (default: output_name_clean_report.json)",
+        help="Đường dẫn file JSON báo cáo (mặc định: {output}_clean_report.json).",
     )
-
-    parser.add_argument(
-        "--comment-col",
-        default=default_dataset_config.comment_col,
-        help="Name of comment column",
-    )
-    parser.add_argument(
-        "--label-col",
-        default=default_dataset_config.label_col,
-        help="Name of label column",
-    )
-
-    parser.add_argument(
-        "--keep-punctuation",
-        default=default_cleaning_config.keep_punctuation,
-        help="Punctuation to keep in remove_special_chars",
-    )
-
-    parser.add_argument(
-        "--max-null-label-ratio",
-        type=float,
-        default=default_cleaning_config.max_null_label_ratio,
-        help="Maximum allowed null label ratio",
-    )
-
-    parser.add_argument(
-        "--enable-outlier",
-        action="store_true",
-        default=default_cleaning_config.outlier_enabled,
-        help="Enable outlier removal with IsolationForest",
-    )
-    parser.add_argument(
-        "--outlier-contamination",
-        type=float,
-        default=default_cleaning_config.outlier_contamination,
-        help="Contamination ratio for outlier detection",
-    )
-    parser.add_argument(
-        "--outlier-random-state",
-        type=int,
-        default=default_cleaning_config.outlier_random_state,
-        help="Random state for outlier detection",
-    )
-    parser.add_argument(
-        "--outlier-feature-cols",
-        nargs="*",
-        default=None,
-        help="Feature columns for outlier detection",
-    )
-
-    parser.add_argument(
-        "--keep-emoji",
-        action="store_true",
-        help="Keep emoji instead of removing them",
-    )
-    parser.add_argument(
-        "--keep-stopwords",
-        action="store_true",
-        help="Keep stopwords instead of removing them",
-    )
-    parser.add_argument(
-        "--stopwords-file",
-        default=None,
-        help="Optional stopwords file, one token per line",
-    )
-
-    parser.add_argument(
-        "--skip-non-text-filter",
-        action="store_true",
-        help="Skip removing comments without letters",
-    )
-    parser.add_argument(
-        "--skip-duplicate-filter",
-        action="store_true",
-        help="Skip removing duplicate comments",
-    )
-
     return parser.parse_args()
 
 
@@ -141,7 +93,9 @@ def clean_comment(
     text = normalize_text(text)
 
     if not keep_stopwords and stopwords:
-        text = remove_stopwords(text, stopwords)
+        text = filter_stopwords(
+            text.split(), stopwords=set(stopwords), return_tokens=False
+        )
 
     text = normalize_text(text)
     return text
@@ -226,6 +180,33 @@ def clean_dataset(
 def main() -> None:
     args = parse_args()
 
+    # ==========================================================
+    # [TUỲ CHỈNH] Cấu hình cleaning
+    # ==========================================================
+    # Tên cột
+    comment_col = default_dataset_config.comment_col
+    label_col = default_dataset_config.label_col
+
+    # Cleaning text
+    keep_punctuation = default_cleaning_config.keep_punctuation
+    keep_emoji = False  # True: giữ emoji, False: xóa emoji
+    keep_stopwords = False  # True: giữ stopwords, False: xóa stopwords
+    stopwords_file = None  # Đường dẫn file stopwords (None: dùng mặc định)
+
+    # Xử lý null
+    max_null_label_ratio = default_cleaning_config.max_null_label_ratio
+
+    # Outlier detection (IsolationForest)
+    enable_outlier = default_cleaning_config.outlier_enabled
+    outlier_contamination = default_cleaning_config.outlier_contamination
+    outlier_random_state = default_cleaning_config.outlier_random_state
+    outlier_feature_cols = default_cleaning_config.outlier_feature_cols
+
+    # Bật/tắt các bước lọc
+    skip_non_text_filter = False  # True: bỏ qua lọc comment không có chữ
+    skip_duplicate_filter = False  # True: bỏ qua lọc duplicate
+    # ==========================================================
+
     input_path = Path(args.input)
     output_path = Path(args.output)
     report_path = (
@@ -234,24 +215,28 @@ def main() -> None:
         else output_path.with_name(f"{output_path.stem}_clean_report.json")
     )
 
-    df = pd.read_csv(input_path)
-    stopwords = load_stopwords(args.stopwords_file)
+    df = read_csv_with_columns(
+        str(input_path),
+        comment_col=comment_col,
+        label_col=label_col,
+    )
+    stopwords = load_stopwords(stopwords_file)
 
     df_clean, report = clean_dataset(
         df=df,
-        comment_col=args.comment_col,
-        label_col=args.label_col,
-        keep_punctuation=args.keep_punctuation,
-        max_null_label_ratio=args.max_null_label_ratio,
-        enable_outlier=args.enable_outlier,
-        outlier_contamination=args.outlier_contamination,
-        outlier_random_state=args.outlier_random_state,
-        outlier_feature_cols=args.outlier_feature_cols,
-        keep_emoji=args.keep_emoji,
-        keep_stopwords=args.keep_stopwords,
+        comment_col=comment_col,
+        label_col=label_col,
+        keep_punctuation=keep_punctuation,
+        max_null_label_ratio=max_null_label_ratio,
+        enable_outlier=enable_outlier,
+        outlier_contamination=outlier_contamination,
+        outlier_random_state=outlier_random_state,
+        outlier_feature_cols=outlier_feature_cols,
+        keep_emoji=keep_emoji,
+        keep_stopwords=keep_stopwords,
         stopwords=stopwords,
-        skip_non_text_filter=args.skip_non_text_filter,
-        skip_duplicate_filter=args.skip_duplicate_filter,
+        skip_non_text_filter=skip_non_text_filter,
+        skip_duplicate_filter=skip_duplicate_filter,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
