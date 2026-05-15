@@ -13,12 +13,13 @@ dependencies:
   - pytest-rerunfailures>=14.0,<16.0
   - pytest-timeout>=2.3,<3.0
   - pre-commit>=3.0,<4.0
+  - setuptools>=70.0,<71.0
+  - stopwordsiso>=0.6,<1.0
   # Khai báo gói PyPI tại đây.
   - pip:
       - numpy>=1.26,<2.0
       - pandas>=2.0,<3.0
       - emoji>=2.0,<3.0
       - underthesea>=1.4,<2.0
-      - stopwordsiso>=0.6,<1.0
       - gdown>=5.0,<6.0
       - requests>=2.31,<3.0

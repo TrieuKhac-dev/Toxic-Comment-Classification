@@ -12,7 +12,7 @@ class CleaningConfig(BaseConfig["CleaningConfig"]):
     max_null_label_ratio: float = 0.05
 
     # --- Outlier detection (Isolation Forest) ---
-    outlier_enabled: bool = False
+    outlier_enabled: bool = True
     outlier_contamination: float = 0.05  # Tỷ lệ outlier kỳ vọng
     outlier_random_state: int = 42
     outlier_feature_cols: list[str] = field(

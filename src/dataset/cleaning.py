@@ -167,7 +167,7 @@ def remove_outliers(
     contamination: float = 0.05,
     random_state: int = 42,
     label_col: str | None = None,
-) -> tuple[pd.DataFrame, dict[str, Any]]:
+) -> tuple[pd.DataFrame, Any]:
     """
     Xóa outlier bằng Isolation Forest dựa trên các đặc trưng số.
 
@@ -198,10 +198,10 @@ def remove_outliers(
     preds = iso_forest.fit_predict(X)
     outlier_mask = preds == -1  # True là outlier
 
-    report = {
-        "total_rows": len(df),
-        "outlier_count": outlier_mask.sum(),
-        "outlier_ratio": outlier_mask.mean(),
+    report: dict[str, Any] = {
+        "total_rows": int(len(df)),
+        "outlier_count": int(outlier_mask.sum()),
+        "outlier_ratio": float(outlier_mask.mean()),
         "outlier_removed_by_label": None,
         "feature_cols_used": feature_cols,
         "contamination_used": contamination,
@@ -209,6 +209,12 @@ def remove_outliers(
 
     if label_col and label_col in df.columns:
         by_label = df.loc[outlier_mask, label_col].value_counts().to_dict()
+        by_label = {
+            int(k) if isinstance(k, int | np.integer) else k: int(v)
+            if isinstance(v, int | np.integer)
+            else v
+            for k, v in by_label.items()
+        }
         report["outlier_removed_by_label"] = by_label
 
     df_cleaned = df[~outlier_mask].copy()

@@ -16,7 +16,7 @@ def check_null(df: pd.DataFrame, cols: list[str] | None = None) -> dict:
         cols = df.columns.tolist()
     null_counts = df[cols].isnull().sum()
     return {
-        "null_counts": null_counts,
+        "null_counts": {str(k): int(v) for k, v in null_counts.items()},
         "total_null": int(null_counts.sum()),
         "null_ratio": float(null_counts.sum() / len(df)) if len(df) > 0 else 0.0,
     }
