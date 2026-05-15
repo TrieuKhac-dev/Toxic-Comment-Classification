@@ -1,0 +1,56 @@
+# dvc.yaml
+# DVC Pipeline cho dataset preprocessing
+# Mỗi stage là 1 bước riêng, DVC tự động cache kết quả
+# Stage cuối cùng (track_meta) log kết quả lên MLflow
+#
+# Cách chạy:
+#   dvc repro -p dataset=custom_dataset,version=v1
+#   dvc repro -p dataset=custom_dataset,version=v1 --single-item clean
+
+vars:
+  - from_file: params.yaml
+
+stages:
+  validate:
+    cmd: python scripts/dataset/validation.py
+      --input datasets/${dataset}/${version}/raw/raw_dataset.csv
+    deps:
+      - datasets/${dataset}/${version}/raw/raw_dataset.csv
+      - config/validation_config.py
+      - src/pipeline/validation_pipeline.py
+      - src/pipeline/base_pipeline.py
+      - src/dataset/validation.py
+    outs:
+      - datasets/${dataset}/${version}/meta/validation_report.json
+
+  clean:
+    cmd: python scripts/dataset/cleaning.py
+      --input datasets/${dataset}/${version}/raw/raw_dataset.csv
+    deps:
+      - datasets/${dataset}/${version}/raw/raw_dataset.csv
+      - config/cleaning_config.py
+      - src/pipeline/cleaning_pipeline.py
+      - src/pipeline/base_pipeline.py
+      - src/dataset/cleaning.py
+      - src/dataset/feature_engineering.py
+      - src/dataset/preprocessing.py
+    outs:
+      - datasets/${dataset}/${version}/processed/processed_dataset.csv
+      - datasets/${dataset}/${version}/meta/cleaning_log.json
+
+  preprocess:
+    cmd: python scripts/dataset/preprocessing.py
+      --input datasets/${dataset}/${version}/processed/processed_dataset.csv
+    deps:
+      - datasets/${dataset}/${version}/processed/processed_dataset.csv
+      - config/preprocessing_config.py
+      - src/pipeline/preprocessing_pipeline.py
+      - src/pipeline/base_pipeline.py
+      - src/dataset/preprocessing.py
+      - src/dataset/loader.py
+    outs:
+      - datasets/${dataset}/${version}/meta/preprocessing_params.json
+
+  # track_meta đã được bỏ khỏi DVC pipeline.
+  # Chạy thủ công khi cần:
+  #   python scripts/mlflow/track_dataset_meta.py --dataset custom_dataset --version v1
