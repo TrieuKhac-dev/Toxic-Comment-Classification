@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+venv/
+.venv/
+
+# DVC
+.dvc/
+.dvc/config
+.dvc/config.local
+
+
+# Ignore all datasets content except .dvc files and .gitkeep
+
+datasets/*
+!datasets/*/
+!datasets/**/.gitkeep
+datasets/**/raw/*
+datasets/**/preprocessed/*
+datasets/**/split/*
+datasets/**/meta/*
+!datasets/**/*.dvc
+
+
+
+# MLflow
+mlruns/
+
+# Reports
+reports/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
