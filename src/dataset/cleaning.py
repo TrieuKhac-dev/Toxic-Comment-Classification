@@ -199,7 +199,7 @@ def remove_outliers(
     outlier_mask = preds == -1  # True là outlier
 
     report: dict[str, Any] = {
-        "total_rows": int(len(df)),
+        "total_rows": len(df),
         "outlier_count": int(outlier_mask.sum()),
         "outlier_ratio": float(outlier_mask.mean()),
         "outlier_removed_by_label": None,

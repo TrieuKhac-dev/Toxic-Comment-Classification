@@ -12,9 +12,13 @@ class DatasetConfig(BaseConfig["DatasetConfig"]):
     comment_col: str = "comment"
     label_col: str = "is_toxic"
 
+    # --- Encoding file CSV ---
+    encoding: str = "utf-8"
+
     # --- Metadata ---
     description: str = ""
 
 
 # Bản mặc định
 default_dataset_config = DatasetConfig()
+default_dataset_config._export_to_globals()

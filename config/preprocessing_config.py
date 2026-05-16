@@ -8,6 +8,11 @@ from config.base_config import BaseConfig
 class PreprocessingConfig(BaseConfig["PreprocessingConfig"]):
     """Cấu hình tiền xử lý văn bản."""
 
+    # --- Bật/tắt các bước preprocessing ---
+    enable_normalize: bool = True
+    enable_tokenize: bool = True
+    enable_stopword_filter: bool = True
+
     normalize_lower: bool = True
     normalize_strip_spaces: bool = True
 
@@ -18,3 +23,4 @@ class PreprocessingConfig(BaseConfig["PreprocessingConfig"]):
 
 
 default_preprocessing_config = PreprocessingConfig()
+default_preprocessing_config._export_to_globals()

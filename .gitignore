@@ -1,9 +1,11 @@
 # Python
 __pycache__/
+*.pyc
 *.py[cod]
 *.egg-info/
 dist/
 build/
+.pytest_cache/
 
 # IDE
 .vscode/
@@ -13,6 +15,16 @@ build/
 .env
 venv/
 .venv/
+
+# Secrets
+scripts/client_secrets.json
+scripts/settings.yaml
+scripts/credentials.json
+scripts/dvc/client_secrets.json
+scripts/dvc/settings.yaml
+scripts/dvc/credentials.json
+
+
 
 # DVC
 .dvc/
@@ -25,10 +37,10 @@ venv/
 datasets/*
 !datasets/*/
 !datasets/**/.gitkeep
-datasets/**/raw/*
-datasets/**/preprocessed/*
-datasets/**/split/*
-datasets/**/meta/*
+datasets/**/*.csv
+datasets/**/*.json
+datasets/**/*.yaml
+datasets/**/*.yml
 !datasets/**/*.dvc
 
 
@@ -39,5 +51,12 @@ mlruns/
 # Reports
 reports/
 
+# Notebooks
+notebooks/
+
 # Notebook checkpoints
 .ipynb_checkpoints/
+
+# Project files
+history.md
+task_progress.md

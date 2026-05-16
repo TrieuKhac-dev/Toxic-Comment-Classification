@@ -7,13 +7,6 @@ from config.base_config import BaseConfig
 class ValidationConfig(BaseConfig["ValidationConfig"]):
     """Cấu hình cho các bước kiểm tra chất lượng dữ liệu."""
 
-    # --- Tên cột ---
-    comment_col: str = "comment"
-    label_col: str = "is_toxic"
-
-    # --- Encoding file CSV ---
-    encoding: str = "utf-8"
-
     # --- Các cột bắt buộc (None = bỏ qua kiểm tra) ---
     required_cols: list[str] | None = field(
         default_factory=lambda: ["comment", "is_toxic"]
@@ -28,3 +21,4 @@ class ValidationConfig(BaseConfig["ValidationConfig"]):
 
 # Bản mặc định
 default_validation_config = ValidationConfig()
+default_validation_config._export_to_globals()

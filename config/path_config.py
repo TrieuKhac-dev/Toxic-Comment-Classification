@@ -5,10 +5,15 @@ Cấu hình đường dẫn chuẩn cho project, hỗ trợ cả local và Googl
 Kế thừa BaseConfig để có thể override linh hoạt.
 """
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from config.base_config import BaseConfig
+
+load_dotenv()
 
 
 @dataclass
@@ -20,9 +25,8 @@ class PathConfig(BaseConfig["PathConfig"]):
         default_factory=lambda: str(Path(__file__).resolve().parent.parent)
     )
 
-    # --- Dataset paths ---
-    raw_data_dir: str = "dataset/raw"
-    preprocessed_data_dir: str = "dataset/preprocess"
+    # --- Data paths ---
+    data_dir: str = "datasets"
 
     # --- Google Drive paths (dùng trong Colab) ---
     drive_mount_path: str = "/content/drive"
@@ -31,20 +35,48 @@ class PathConfig(BaseConfig["PathConfig"]):
     # --- File names ---
     raw_dataset_filename: str = "raw_dataset.csv"
 
-    # --- Derived paths (computed) ---
-    @property
-    def raw_dataset_path(self) -> str:
-        return str(
-            Path(self.project_root) / self.raw_data_dir / self.raw_dataset_filename
-        )
+    # --- DVC remote ---
+    gdrive_folder_id: str = field(
+        default_factory=lambda: os.getenv("GDRIVE_FOLDER_ID", "")
+    )
 
-    @property
-    def drive_raw_dataset_path(self) -> str:
-        return f"{self.drive_data_dir}/{self.raw_dataset_filename}"
+    # --- Helper methods (dùng chung cho mọi dataset) ---
+    def get_dataset_dir(self, dataset_name: str) -> str:
+        """Lấy thư mục dataset: datasets/<dataset_name>"""
+        return f"{self.data_dir}/{dataset_name}"
 
-    def get_preprocessed_path(self, filename: str) -> str:
-        return str(Path(self.project_root) / self.preprocessed_data_dir / filename)
+    def get_drive_dataset_dir(self, dataset_name: str) -> str:
+        """Lấy thư mục dataset trên Drive: drive_data_dir/<dataset_name>"""
+        return f"{self.drive_data_dir}/{dataset_name}"
+
+    def get_version_dir(self, dataset_name: str, version: str = "v1") -> str:
+        return f"{self.get_dataset_dir(dataset_name)}/{version}"
+
+    def get_raw_dir(self, dataset_name: str, version: str = "v1") -> str:
+        return f"{self.get_version_dir(dataset_name, version)}/raw"
+
+    def get_processed_dir(self, dataset_name: str, version: str = "v1") -> str:
+        return f"{self.get_version_dir(dataset_name, version)}/processed"
+
+    def get_processed_filename(self, raw_filename: str) -> str:
+        """Sinh tên file processed từ tên file raw.
+        Ví dụ: raw_dataset.csv -> processed_dataset.csv
+                raw_data.csv -> processed_data.csv
+                dataset.csv -> processed_dataset.csv
+        """
+        stem = Path(raw_filename).stem
+        # Nếu tên bắt đầu bằng "raw_" thì bỏ "raw_"
+        if stem.startswith("raw_"):
+            stem = stem[4:]
+        return f"processed_{stem}.csv"
+
+    def get_split_dir(self, dataset_name: str, version: str = "v1") -> str:
+        return f"{self.get_version_dir(dataset_name, version)}/split"
+
+    def get_meta_dir(self, dataset_name: str, version: str = "v1") -> str:
+        return f"{self.get_version_dir(dataset_name, version)}/meta"
 
 
 # Bản mặc định
 default_path_config = PathConfig()
+default_path_config._export_to_globals()

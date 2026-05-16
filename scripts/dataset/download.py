@@ -10,7 +10,7 @@ Cách dùng:
 Ví dụ:
     python scripts/dataset/download.py ^
         --file-id 1ABCxyz123 ^
-        --dest dataset/raw/raw_dataset.csv
+        --dest data/custom_dataset/v1/raw/raw_dataset.csv
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dest",
         required=True,
-        help="Đường dẫn đích để lưu file (vd: 'dataset/raw/raw_dataset.csv').",
+        help="Đường dẫn đích để lưu file (vd: 'data/custom_dataset/v1/raw/raw_dataset.csv').",
     )
     return parser.parse_args()
 
@@ -50,7 +50,7 @@ def main() -> None:
         print(f"\nLỗi: {e}")
         print("Gợi ý:")
         print(
-            "  - Kiểm tra --dest phải bao gồm tên file (vd: dataset/raw/raw_dataset.csv), không chỉ thư mục"
+            "  - Kiểm tra --dest phải bao gồm tên file (vd: data/custom_dataset/v1/raw/raw_dataset.csv), không chỉ thư mục"
         )
         print("  - Kiểm tra file_id có đúng không")
         print("  - Đảm bảo file trên Drive đã được chia sẻ public")

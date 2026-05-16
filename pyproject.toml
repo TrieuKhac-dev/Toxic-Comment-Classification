@@ -34,6 +34,10 @@ strict_equality = true
 # Tạm bỏ lỗi import thiếu type từ thư viện ngoài
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
 
 # RUFF — LINT & FORMAT
 [tool.ruff]

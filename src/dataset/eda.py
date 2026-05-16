@@ -10,13 +10,14 @@ from typing import Any
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from matplotlib.figure import Figure
 from nltk import ngrams
 from sklearn.ensemble import IsolationForest
 from underthesea import pos_tag
 from wordcloud import WordCloud
 
 from src.dataset.cleaning import remove_special_chars
-from src.dataset.feature_enginering import add_ttr_column
+from src.dataset.feature_engineering import add_ttr_column
 from src.dataset.preprocessing import (
     filter_stopwords,
     get_tokenizer,
@@ -33,7 +34,7 @@ def plot_label_distribution(
     figsize: tuple[int, int] = (6, 4),
     title: str | None = None,
     save_path: str | None = None,
-) -> plt.Figure:
+) -> Figure:
     """
     Vẽ biểu đồ phân bố nhãn.
     """
@@ -52,7 +53,7 @@ def plot_label_distribution(
 # ----------------------------------------------------------------------
 def plot_length_distribution(
     df: pd.DataFrame, figsize: tuple[int, int] = (14, 5), save_path: str | None = None
-) -> plt.Figure:
+) -> Figure:
     """
     Vẽ histogram phân bố số ký tự và số từ.
     Cần DataFrame có cột 'char_len' và 'word_len' (tạo từ feature_engineering.add_length_features).
@@ -74,7 +75,7 @@ def plot_length_boxplot_by_label(
     length_col: str = "word_len",
     figsize: tuple[int, int] = (10, 5),
     save_path: str | None = None,
-) -> plt.Figure:
+) -> Figure:
     """
     Boxplot so sánh độ dài (word_len hoặc char_len) giữa các lớp.
     """
@@ -95,7 +96,7 @@ def detect_outliers_isolation_forest(
     contamination: float = 0.05,
     random_state: int = 42,
     label_col: str | None = None,
-) -> tuple[pd.Series, plt.Figure]:
+) -> tuple[pd.Series, Figure]:
     """
     Phát hiện outlier bằng Isolation Forest và vẽ biểu đồ phân bố theo lớp.
 
@@ -193,7 +194,7 @@ def plot_ttr_boxplot_by_label(
     tokens_col: str = "tokens",
     figsize: tuple[int, int] = (8, 5),
     save_path: str | None = None,
-) -> plt.Figure:
+) -> Figure:
     """
     Boxplot so sánh TTR giữa các lớp.
     Cần DataFrame có cột 'tokens'.
@@ -218,7 +219,7 @@ def compare_pos_tags(
     tokens_col: str = "tokens",
     sample_size: int = 500,
     random_state: int = 42,
-) -> tuple[pd.DataFrame, plt.Figure]:
+) -> tuple[pd.DataFrame, Figure]:
     """
     So sánh tần suất POS tags giữa các lớp.
     Trả về DataFrame so sánh và Figure biểu đồ top chênh lệch.
@@ -378,7 +379,7 @@ def plot_wordcloud(
     max_words: int = 200,
     figsize: tuple[int, int] = (12, 6),
     save_path: str | None = None,
-) -> plt.Figure:
+) -> Figure:
     """
     Vẽ word cloud từ tất cả token.
     Cần DataFrame có cột 'tokens'.
