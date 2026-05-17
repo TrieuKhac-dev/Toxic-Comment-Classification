@@ -11,7 +11,7 @@ Cách dùng trong code Python / Colab:
     from scripts.dataset.validation import validate_dataset_file
 
     report = validate_dataset_file(
-        input_path="datasets/custom_dataset/v1/raw/raw_dataset.csv",
+        input_path="datasets/custom_dataset/v1/processed/processed_dataset.csv",
         comment_col="comment",
         label_col="is_toxic",
     )
@@ -171,7 +171,7 @@ def main() -> None:
         # comment_col="comment",
         # label_col="is_toxic",
     )
-    validation_config = default_validation_config.override(
+    validation_config = default_validation_config.override(  # noqa: F841
         # Ví dụ override:
         # required_cols=["comment", "is_toxic"],
         # enable_column_check=True,
@@ -190,8 +190,6 @@ def main() -> None:
         comment_col=comment_col,
         label_col=label_col,
         encoding=dataset_config.encoding,
-        validation_config_override=validation_config.to_dict(),
-        dataset_config_override=dataset_config.to_dict(),
     )
 
 

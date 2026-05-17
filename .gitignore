@@ -31,7 +31,7 @@ datasets/**/*.csv
 datasets/**/*.json
 datasets/**/*.yaml
 datasets/**/*.yml
-
+change_log.md
 
 
 # MLflow
@@ -49,3 +49,4 @@ notebooks/
 # Project files
 history.md
 task_progress.md
+memo.md

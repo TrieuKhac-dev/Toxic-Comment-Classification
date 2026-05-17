@@ -192,7 +192,7 @@ def main() -> None:
         # comment_col="comment",
         # label_col="is_toxic",
     )
-    cleaning_config = default_cleaning_config.override(
+    cleaning_config = default_cleaning_config.override(  # noqa: F841
         # Ví dụ override:
         # keep_punctuation=r".,!?",
         # max_null_label_ratio=0.05,
@@ -210,8 +210,6 @@ def main() -> None:
         comment_col=comment_col,
         label_col=label_col,
         encoding=dataset_config.encoding,
-        cleaning_config_override=cleaning_config.to_dict(),
-        dataset_config_override=dataset_config.to_dict(),
     )
 
 

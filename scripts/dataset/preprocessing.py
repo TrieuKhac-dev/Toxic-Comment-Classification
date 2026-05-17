@@ -204,7 +204,7 @@ def main() -> None:
         # comment_col="comment",
         # label_col="is_toxic",
     )
-    preprocess_config = default_preprocessing_config.override(
+    preprocess_config = default_preprocessing_config.override(  # noqa: F841
         # Ví dụ override:
         # normalize_lower=True,
         # normalize_strip_spaces=True,
@@ -222,8 +222,6 @@ def main() -> None:
         comment_col=comment_col,
         label_col=label_col,
         encoding=dataset_config.encoding,
-        preprocessing_config_override=preprocess_config.to_dict(),
-        dataset_config_override=dataset_config.to_dict(),
     )
 
 
