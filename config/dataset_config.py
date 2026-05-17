@@ -8,6 +8,10 @@ from config.base_config import BaseConfig
 class DatasetConfig(BaseConfig["DatasetConfig"]):
     """Cấu hình dữ liệu cho một dataset cụ thể (có thể ghi đè)."""
 
+    # --- Tên dataset & version ---
+    dataset_name: str = "custom_dataset"
+    version: str = "v1"
+
     # --- Tên cột ---
     comment_col: str = "comment"
     label_col: str = "is_toxic"
@@ -21,4 +25,3 @@ class DatasetConfig(BaseConfig["DatasetConfig"]):
 
 # Bản mặc định
 default_dataset_config = DatasetConfig()
-default_dataset_config._export_to_globals()

@@ -11,7 +11,7 @@
 ## Bản đồ tài liệu
 
 - Quy trình làm việc chi tiết: [docs/workflows.md](docs/workflows.md)
-- Hướng dẫn DVC & MLflow: [docs/dvc_mlflow_guide.md](docs/dvc_mlflow_guide.md)
+- Hướng dẫn MLflow: [docs/mlflow_guide.md](docs/mlflow_guide.md)
 - Quy tắc branch bắt buộc: [.github/branch_rules.md](.github/branch_rules.md)
 - Mẫu Pull Request: [.github/pull_request_template.md](.github/pull_request_template.md)
 - Hướng dẫn xử lý lỗi: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
@@ -44,57 +44,6 @@ Luôn dùng lệnh trên thay vì:
 conda env update -f environment.yml --prune
 ```
 
-### Thiết lập DVC + Google Drive Remote
-
-DVC dùng Google Drive làm remote storage. Cấu hình OAuth được lưu local (không commit lên Git).
-
-> **Yêu cầu:** Bạn cần được chủ project share quyền truy cập vào folder Google Drive chứa dataset.
-> Nếu chưa có, liên hệ chủ project để được thêm vào folder.
-
-#### Hướng dẫn nhanh cho dev mới (clone lần đầu)
-
-Sau khi clone project, chạy các lệnh sau:
-
-```powershell
-# 1. Khởi tạo DVC
-dvc init
-
-# 2. Thêm remote Google Drive (dùng chung folder của team, liên hệ chủ project để lấy FOLDER_ID)
-dvc remote add gdrive_remote gdrive://<FOLDER_ID>
-
-
-# 3. Cấu hình OAuth Client ID (lấy từ chủ project hoặc file scripts/dvc/client_secrets.json)
-dvc remote modify gdrive_remote gdrive_client_id <CLIENT_ID>
-dvc remote modify gdrive_remote gdrive_client_secret <CLIENT_SECRET>
-
-# 4. Set remote mặc định
-dvc config core.remote gdrive_remote
-
-# 5. Pull dữ liệu từ Google Drive
-conda run -n toxic-cmt-clf dvc pull
-```
-
-Khi chạy `dvc pull` lần đầu, trình duyệt sẽ mở ra yêu cầu đăng nhập Google và cấp quyền cho ứng dụng.
-
-> **Lưu ý:** `<CLIENT_ID>` và `<CLIENT_SECRET>` lấy từ file `scripts/dvc/client_secrets.json` (liên hệ chủ project để nhận file này, hoặc tự tạo OAuth Client ID theo hướng dẫn bên dưới).
-
-#### Nếu tự tạo OAuth Client ID (khi chưa có file client_secrets.json)
-
-1. Vào <https://console.cloud.google.com/apis/credentials>
-2. Nếu chưa có OAuth consent screen: Chọn **OAuth consent screen** → **External** → **Create**
-   - App name: `Toxic Comment Classification`
-   - User support email: email Google của bạn
-   - Developer contact: email Google của bạn
-   - **Save and Continue**
-   - Mục **Scopes** → **Add or Remove Scopes** → thêm `.../auth/drive` → **Update** → **Save and Continue**
-   - Mục **Test users** → **Add Users** → thêm email Google của bạn → **Save and Continue**
-3. Quay lại **Credentials** → **+ Create Credentials** → **OAuth client ID**
-   - Application type: **Desktop app**
-   - Name: `DVC Desktop`
-   - Nhấn **Create** → **Download JSON**
-4. Đặt file vào `scripts/dvc/client_secrets.json`
-5. Mở file lấy `client_id` và `client_secret` để dùng ở bước 3 ở trên
-
 ### Thiết lập MLflow Tracking
 
 MLflow được cấu hình mặc định lưu local vào thư mục `mlruns/`. Để xem UI:
@@ -111,11 +60,11 @@ Mở trình duyệt tại `http://localhost:5000` để xem kết quả.
 datasets/
 └── custom_dataset/
     └── v1/
-        ├── raw/              # DVC tracked
+        ├── raw/              # Dữ liệu gốc
         │   └── raw_dataset.csv
-        ├── processed/        # DVC tracked (output của clean + preprocess)
+        ├── processed/        # Dữ liệu sau clean + preprocess
         │   └── processed_dataset.csv
-        ├── split/            # DVC sẽ tự sinh (nếu có)
+        ├── split/            # Dữ liệu split (nếu có)
         └── meta/             # Tự động sinh bởi pipeline
             ├── cleaning_log.json
             ├── validation_report.json
@@ -131,27 +80,37 @@ scripts/
 │   ├── validation.py     # Kiểm tra chất lượng dữ liệu
 │   ├── cleaning.py       # Làm sạch dữ liệu
 │   ├── preprocessing.py  # Tiền xử lý văn bản
-│   └── download.py       # Tải dữ liệu
-├── dvc/                  # DVC-related scripts
-│   ├── auth_gdrive.py
-│   ├── client_secrets.json
-│   └── settings.yaml
+│   └── download.py       # Tải dữ liệu từ Google Drive
 └── mlflow/               # MLflow-related scripts
     ├── reproduce_experiment.py
     ├── track_dataset_meta.py
     └── visualize_results.py
 ```
 
-### Chạy DVC Pipeline
+### Tải dataset từ Google Drive
+
+Dataset được lưu trên Google Drive. Liên hệ chủ project để lấy file_id, sau đó:
 
 ```powershell
-# Chạy toàn bộ pipeline (validate → clean → preprocess → track_meta)
-conda run -n toxic-cmt-clf dvc repro -p dataset=custom_dataset,version=v1
+conda run -n toxic-cmt-clf python scripts/dataset/download.py --file-id <FILE_ID> --dest datasets/custom_dataset/v1/raw/raw_dataset.csv
+```
 
-# Chạy từng stage riêng
-conda run -n toxic-cmt-clf dvc repro -p dataset=custom_dataset,version=v1 --single-item validate
-conda run -n toxic-cmt-clf dvc repro -p dataset=custom_dataset,version=v1 --single-item clean
-conda run -n toxic-cmt-clf dvc repro -p dataset=custom_dataset,version=v1 --single-item preprocess
+### Chạy pipeline xử lý dataset
+
+Chạy các script theo thứ tự:
+
+```powershell
+# 1. Validation
+conda run -n toxic-cmt-clf python scripts/dataset/validation.py --input datasets/custom_dataset/v1/raw/raw_dataset.csv
+
+# 2. Cleaning
+conda run -n toxic-cmt-clf python scripts/dataset/cleaning.py --input datasets/custom_dataset/v1/raw/raw_dataset.csv
+
+# 3. Preprocessing
+conda run -n toxic-cmt-clf python scripts/dataset/preprocessing.py --input datasets/custom_dataset/v1/processed/processed_dataset.csv
+
+# 4. Track lên MLflow
+conda run -n toxic-cmt-clf python scripts/mlflow/track_dataset_meta.py --dataset custom_dataset --version v1
 ```
 
 ### Chạy thử nghiệm với Notebook

@@ -7,6 +7,7 @@ KHÔNG phụ thuộc vào src/pipeline/ - tracking là việc riêng, không ph�
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -14,13 +15,12 @@ from typing import Any
 import pandas as pd
 import yaml
 
-from src.tracking.dvc_integration import get_dvc_hash as _get_dvc_hash_full
 from src.tracking.mlflow_tracker import MLflowTracker
 
 
-def get_dvc_hash(dataset_path: str) -> str | None:
+def get_dataset_hash(dataset_path: str) -> str | None:
     """
-    Đọc DVC hash từ file .dvc của thư mục version.
+    Tính hash (md5) của thư mục dataset dựa trên nội dung các file bên trong.
     Trả về 8 ký tự đầu của hash.
 
     Parameters
@@ -31,12 +31,27 @@ def get_dvc_hash(dataset_path: str) -> str | None:
     Returns
     -------
     str | None
-        8 ký tự đầu của hash, hoặc None nếu không tìm thấy.
+        8 ký tự đầu của hash, hoặc None nếu thư mục không tồn tại.
     """
-    full_hash = _get_dvc_hash_full(dataset_path)
-    if full_hash:
-        return full_hash[:8]
-    return None
+    from config.path_config import default_path_config
+
+    full_path = Path(default_path_config.project_root) / dataset_path
+    if not full_path.exists() or not full_path.is_dir():
+        return None
+
+    hash_md5 = hashlib.md5()
+    # Duyệt tất cả file trong thư mục (bao gồm cả thư mục con)
+    for f in sorted(full_path.rglob("*")):
+        if f.is_file():
+            # Thêm relative path vào hash
+            rel_path = str(f.relative_to(full_path))
+            hash_md5.update(rel_path.encode("utf-8"))
+            # Thêm nội dung file vào hash
+            with open(f, "rb") as fh:
+                for chunk in iter(lambda: fh.read(4096), b""):
+                    hash_md5.update(chunk)
+
+    return hash_md5.hexdigest()[:8]
 
 
 def _flatten_dict(
@@ -131,18 +146,18 @@ def track_dataset_meta(tracker: MLflowTracker, meta_dir: str) -> None:
 
 def mlflow_run_exists(
     experiment_name: str,
-    dvc_hash: str,
+    dataset_hash: str,
     tracking_uri: str | None = None,
 ) -> bool:
     """
-    Kiểm tra xem đã có MLflow run nào với DVC hash này chưa.
+    Kiểm tra xem đã có MLflow run nào với dataset hash này chưa.
 
     Parameters
     ----------
     experiment_name : str
         Tên experiment trên MLflow.
-    dvc_hash : str
-        DVC hash cần kiểm tra.
+    dataset_hash : str
+        Dataset hash cần kiểm tra.
     tracking_uri : str | None
         URI của MLflow tracking server.
 
@@ -171,7 +186,7 @@ def mlflow_run_exists(
 
     runs: pd.DataFrame = mlflow.search_runs(
         experiment_ids=[experiment.experiment_id],
-        filter_string=f"tags.dvc_dataset_hash = '{dvc_hash}'",
+        filter_string=f"tags.dataset_hash = '{dataset_hash}'",
         max_results=1,
     )
     return not runs.empty

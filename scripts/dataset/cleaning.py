@@ -28,8 +28,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from config.cleaning_config import default_cleaning_config
 from config.dataset_config import default_dataset_config
 from config.path_config import default_path_config
-from src.dataset.loader import read_csv_with_columns
 from src.pipeline.cleaning_pipeline import clean_text_pipeline
+from src.utils.csv import read_csv_with_columns
 
 
 def parse_args() -> argparse.Namespace:

@@ -20,19 +20,9 @@ venv/
 scripts/client_secrets.json
 scripts/settings.yaml
 scripts/credentials.json
-scripts/dvc/client_secrets.json
-scripts/dvc/settings.yaml
-scripts/dvc/credentials.json
 
 
-
-# DVC
-.dvc/
-.dvc/config
-.dvc/config.local
-
-
-# Ignore all datasets content except .dvc files and .gitkeep
+# Ignore all datasets content except .gitkeep
 
 datasets/*
 !datasets/*/
@@ -41,7 +31,6 @@ datasets/**/*.csv
 datasets/**/*.json
 datasets/**/*.yaml
 datasets/**/*.yml
-!datasets/**/*.dvc
 
 
 

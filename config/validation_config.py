@@ -21,4 +21,3 @@ class ValidationConfig(BaseConfig["ValidationConfig"]):
 
 # Bản mặc định
 default_validation_config = ValidationConfig()
-default_validation_config._export_to_globals()

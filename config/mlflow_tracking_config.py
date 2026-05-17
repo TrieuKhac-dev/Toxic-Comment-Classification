@@ -37,6 +37,6 @@ class MLflowTrackingConfig(BaseConfig["MLflowTrackingConfig"]):
     default_tags: dict[str, str] = field(
         default_factory=lambda: {
             "pipeline_type": "dataset",
-            "tool": "dvc_pipeline",
+            "tool": "dataset_pipeline",
         }
     )

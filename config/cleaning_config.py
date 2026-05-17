@@ -39,4 +39,3 @@ class CleaningConfig(BaseConfig["CleaningConfig"]):
 
 # Bản mặc định
 default_cleaning_config = CleaningConfig()
-default_cleaning_config._export_to_globals()

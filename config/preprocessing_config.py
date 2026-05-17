@@ -23,4 +23,3 @@ class PreprocessingConfig(BaseConfig["PreprocessingConfig"]):
 
 
 default_preprocessing_config = PreprocessingConfig()
-default_preprocessing_config._export_to_globals()

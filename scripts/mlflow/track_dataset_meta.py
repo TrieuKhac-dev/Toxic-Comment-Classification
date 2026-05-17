@@ -5,7 +5,7 @@ Script MLflow tracking riêng cho dataset pipeline.
 Đọc các file trong thư mục meta/ của dataset và log vào MLflow.
 
 Nguyên tắc:
-- 1 DVC hash = 1 MLflow run (nếu hash không đổi thì không tạo run mới)
+- 1 dataset hash = 1 MLflow run (nếu hash không đổi thì không tạo run mới)
 - Pipeline script (validation.py, cleaning.py) KHÔNG chứa MLflow code
 - Script này là nơi duy nhất xử lý MLflow tracking cho dataset
 
@@ -27,7 +27,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from config.mlflow_tracking_config import MLflowTrackingConfig
 from config.path_config import default_path_config
 from src.tracking.dataset_tracker import (
-    get_dvc_hash,
+    get_dataset_hash,
     mlflow_run_exists,
     track_dataset_meta,
 )
@@ -89,14 +89,13 @@ def main() -> None:
         print("  Hãy chạy pipeline trước để sinh dữ liệu meta.")
         return
 
-    # Lấy DVC hash
-    dvc_hash = get_dvc_hash(dataset_path)
-    if not dvc_hash:
-        print(f"  ⚠️  Không tìm thấy DVC hash cho {dataset_path}")
-        print(f"  Hãy chạy 'dvc add {dataset_path}/' trước.")
+    # Lấy dataset hash
+    dataset_hash = get_dataset_hash(dataset_path)
+    if not dataset_hash:
+        print(f"  ⚠️  Không thể tính hash cho {dataset_path}")
         return
 
-    print(f"🔍 DVC hash: {dvc_hash}")
+    print(f"🔍 Dataset hash: {dataset_hash}")
 
     # Kiểm tra xem hash này đã được track chưa
     tracking_uri = os.getenv(
@@ -106,14 +105,16 @@ def main() -> None:
 
     if mlflow_run_exists(
         experiment_name=mlflow_cfg.experiment_name,
-        dvc_hash=dvc_hash,
+        dataset_hash=dataset_hash,
         tracking_uri=tracking_uri,
     ):
-        print(f"  DVC hash {dvc_hash} đã được track, bỏ qua (không tạo run mới)")
+        print(
+            f"  Dataset hash {dataset_hash} đã được track, bỏ qua (không tạo run mới)"
+        )
         return
 
     # Tạo run name = dataset_version_hash
-    run_name = f"{args.dataset}_{args.version}_{dvc_hash}"
+    run_name = f"{args.dataset}_{args.version}_{dataset_hash}"
 
     # Tạo tags
     tags = dict(mlflow_cfg.default_tags)
@@ -121,7 +122,7 @@ def main() -> None:
         {
             "dataset_name": args.dataset,
             "dataset_version": args.version,
-            "dvc_dataset_hash": dvc_hash,
+            "dataset_hash": dataset_hash,
         }
     )
 
@@ -134,8 +135,8 @@ def main() -> None:
         tracking_uri=tracking_uri,
         tags=tags,
     ) as tracker:
-        # Log DVC hash làm param
-        tracker.log_params({"dvc_dataset_hash": dvc_hash})
+        # Log dataset hash làm param
+        tracker.log_params({"dataset_hash": dataset_hash})
 
         # Track tất cả file trong meta/
         if mlflow_cfg.track_meta_files:

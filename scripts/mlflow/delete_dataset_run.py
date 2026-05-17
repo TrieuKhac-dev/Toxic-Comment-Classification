@@ -23,7 +23,7 @@ import mlflow
 
 from config.mlflow_tracking_config import MLflowTrackingConfig
 from config.path_config import default_path_config
-from src.tracking.dataset_tracker import get_dvc_hash
+from src.tracking.dataset_tracker import get_dataset_hash
 
 
 def parse_args() -> argparse.Namespace:
@@ -63,14 +63,14 @@ def main() -> None:
 
     dataset_path = f"datasets/{args.dataset}/{args.version}"
 
-    # Lấy DVC hash
-    dvc_hash = get_dvc_hash(dataset_path)
-    if not dvc_hash:
-        print(f"  ⚠️  Không tìm thấy DVC hash cho {dataset_path}")
+    # Lấy dataset hash
+    dataset_hash = get_dataset_hash(dataset_path)
+    if not dataset_hash:
+        print(f"  ⚠️  Không thể tính hash cho {dataset_path}")
         return
 
-    run_name = f"{args.dataset}_{args.version}_{dvc_hash}"
-    print(f"🔍 DVC hash: {dvc_hash}")
+    run_name = f"{args.dataset}_{args.version}_{dataset_hash}"
+    print(f"🔍 Dataset hash: {dataset_hash}")
     print(f"🔍 Run name cần xoá: {run_name}")
 
     # Set tracking URI (cần file:/// prefix cho đường dẫn local)

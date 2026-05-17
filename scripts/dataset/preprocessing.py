@@ -29,8 +29,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from config.dataset_config import default_dataset_config
 from config.path_config import default_path_config
 from config.preprocessing_config import default_preprocessing_config
-from src.dataset.loader import read_csv_with_columns
 from src.pipeline.preprocessing_pipeline import preprocess_text_pipeline
+from src.utils.csv import read_csv_with_columns
 
 
 def parse_args() -> argparse.Namespace:

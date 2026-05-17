@@ -2,7 +2,7 @@
 experiment_manager.py
 
 Quản lý các experiment: tạo, so sánh, hiển thị kết quả.
-Tích hợp MLflow để tracking và DVC để version data.
+Tích hợp MLflow để tracking dataset và model experiments.
 """
 
 from __future__ import annotations
