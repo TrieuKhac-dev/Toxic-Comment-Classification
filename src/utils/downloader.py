@@ -26,6 +26,13 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def _find_file_recursive(directory: Path, filename: str) -> Path | None:
+    """Tìm file trong directory (bao gồm subdirectory)."""
+    for fpath in directory.rglob(filename):
+        return fpath
+    return None
+
+
 def download(
     folder_url: str,
     dest_dir: str,
@@ -63,16 +70,23 @@ def download(
 
         gdown.download_folder(
             url=folder_url,
-            output=str(dst_path.parent),
+            output=str(dst_path),
             quiet=False,
             use_cookies=False,
         )
 
-        result_file = dst_path / filename
-        if result_file.exists():
-            print(f"✅ File đã được tải về: {result_file}")
+        # gdown.download_folder có thể tạo thư mục con bên trong dst_path,
+        # nên cần tìm file theo cả subdirectory
+        result_file = _find_file_recursive(dst_path, filename)
+        if result_file is not None:
+            # Nếu file nằm trong subdirectory, move lên dst_path
+            if result_file.parent != dst_path:
+                result_file.rename(dst_path / filename)
+                print(f"✅ File đã được tải về: {dst_path / filename}")
+            else:
+                print(f"✅ File đã được tải về: {result_file}")
         else:
-            print(f"⚠️  Không tìm thấy file {result_file}")
+            print(f"⚠️  Không tìm thấy file {filename} trong {dst_path}")
             print("Kiểm tra lại folder_url hoặc tên file trong folder.")
     else:
         # --- Chế độ 2: Tải toàn bộ folder ---
