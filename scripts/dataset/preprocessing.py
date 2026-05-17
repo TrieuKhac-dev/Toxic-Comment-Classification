@@ -4,12 +4,21 @@ preprocessing.py
 Script CLI để tiền xử lý văn bản (preprocessing).
 Pipeline tự động lưu preprocessing_params.json vào thư mục meta/.
 
-Cách dùng:
+Cách dùng CLI:
     python scripts/dataset/preprocessing.py --input <INPUT_CSV> [--output <OUTPUT_CSV>]
 
 Nếu không truyền --output, mặc định:
     Input:  datasets/<dataset>/<version>/processed/<filename>.csv
     Output: datasets/<dataset>/<version>/processed/<filename>.csv (ghi đè)
+
+Cách dùng trong code Python / Colab:
+    from scripts.dataset.preprocessing import preprocess_dataset
+
+    df_preprocessed = preprocess_dataset(
+        input_path="datasets/custom_dataset/v1/processed/processed_dataset.csv",
+        comment_col="comment",
+        label_col="is_toxic",
+    )
 
 Tuỳ chỉnh preprocessing:
     Sửa trực tiếp trong hàm main() hoặc dùng config/preprocessing_config.py,
@@ -22,6 +31,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # Thêm thư mục gốc project vào sys.path để import được src
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -44,6 +54,18 @@ def parse_args() -> argparse.Namespace:
         "--output",
         default=None,
         help="Đường dẫn file CSV đầu ra (mặc định: ghi đè lên input).",
+    )
+    parser.add_argument(
+        "--comment-col",
+        type=str,
+        default=None,
+        help="Tên cột comment (mặc định: 'comment').",
+    )
+    parser.add_argument(
+        "--label-col",
+        type=str,
+        default=None,
+        help="Tên cột nhãn (mặc định: 'is_toxic').",
     )
     return parser.parse_args()
 
@@ -80,31 +102,62 @@ def _infer_output_path(input_path: Path) -> Path:
     return Path(path_cfg.project_root) / processed_dir / processed_filename
 
 
-def main() -> None:
-    args = parse_args()
+def preprocess_dataset(
+    input_path: str,
+    output_path: str | None = None,
+    comment_col: str = "comment",
+    label_col: str = "is_toxic",
+    encoding: str = "utf-8",
+    preprocessing_config_override: dict[str, Any] | None = None,
+    dataset_config_override: dict[str, Any] | None = None,
+) -> Any:
+    """
+    Tiền xử lý dataset và lưu kết quả.
 
-    # ==========================================================
-    # [TUỲ CHỈNH] Cấu hình preprocessing
-    # ==========================================================
+    Hàm này có thể gọi trực tiếp từ code Python hoặc Colab,
+    không phụ thuộc argparse.
+
+    Parameters
+    ----------
+    input_path : str
+        Đường dẫn file CSV đầu vào.
+    output_path : str | None
+        Đường dẫn file CSV đầu ra. Nếu None, tự sinh từ input path.
+    comment_col : str
+        Tên cột comment (mặc định: "comment").
+    label_col : str
+        Tên cột nhãn (mặc định: "is_toxic").
+    encoding : str
+        Encoding file CSV (mặc định: "utf-8").
+    preprocessing_config_override : dict | None
+        Các tham số ghi đè cho PreprocessingConfig.
+    dataset_config_override : dict | None
+        Các tham số ghi đè cho DatasetConfig.
+
+    Returns
+    -------
+    DataFrame
+        DataFrame đã được tiền xử lý.
+    """
+    input_path_obj = Path(input_path)
+    output_path_obj = (
+        Path(output_path) if output_path else _infer_output_path(input_path_obj)
+    )
+    dataset_name, version = _parse_dataset_info(input_path_obj)
+
+    # Config
     dataset_config = default_dataset_config.override(
-        # Ví dụ override:
-        # comment_col="comment",
-        # label_col="is_toxic",
+        comment_col=comment_col,
+        label_col=label_col,
+        encoding=encoding,
+        **(dataset_config_override or {}),
     )
     preprocess_config = default_preprocessing_config.override(
-        # Ví dụ override:
-        # normalize_lower=True,
-        # normalize_strip_spaces=True,
-        # return_tokens=False,
+        **(preprocessing_config_override or {}),
     )
-    # ==========================================================
-
-    input_path = Path(args.input)
-    output_path = Path(args.output) if args.output else _infer_output_path(input_path)
-    dataset_name, version = _parse_dataset_info(input_path)
 
     df = read_csv_with_columns(
-        str(input_path),
+        str(input_path_obj),
         comment_col=dataset_config.comment_col,
         label_col=dataset_config.label_col,
     )
@@ -130,12 +183,48 @@ def main() -> None:
         )
     )
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False, encoding="utf-8-sig")
+    output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_path_obj, index=False, encoding="utf-8-sig")
 
-    print(f"Saved preprocessed dataset: {output_path}")
+    print(f"Saved preprocessed dataset: {output_path_obj}")
     print(f"Rows before: {len(df)}")
     print(f"Rows after : {len(df)}")
+
+    return df
+
+
+def main() -> None:
+    args = parse_args()
+
+    # ==========================================================
+    # [TUỲ CHỈNH] Cấu hình preprocessing
+    # ==========================================================
+    dataset_config = default_dataset_config.override(
+        # Ví dụ override:
+        # comment_col="comment",
+        # label_col="is_toxic",
+    )
+    preprocess_config = default_preprocessing_config.override(
+        # Ví dụ override:
+        # normalize_lower=True,
+        # normalize_strip_spaces=True,
+        # return_tokens=False,
+    )
+    # ==========================================================
+
+    # CLI args override config
+    comment_col = args.comment_col or dataset_config.comment_col
+    label_col = args.label_col or dataset_config.label_col
+
+    preprocess_dataset(
+        input_path=args.input,
+        output_path=args.output,
+        comment_col=comment_col,
+        label_col=label_col,
+        encoding=dataset_config.encoding,
+        preprocessing_config_override=preprocess_config.to_dict(),
+        dataset_config_override=dataset_config.to_dict(),
+    )
 
 
 if __name__ == "__main__":

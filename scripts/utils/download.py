@@ -70,8 +70,7 @@ def download_from_config(
         dest_dir = default_path_config.get_meta_dir(dataset_name, version)
     else:
         dest_dir = (
-            f"{default_path_config.get_version_dir(dataset_name, version)}"
-            f"/{subfolder}"
+            f"{default_path_config.get_version_dir(dataset_name, version)}/{subfolder}"
         )
 
     download(folder_url=folder_url, dest_dir=dest_dir, filename=filename)

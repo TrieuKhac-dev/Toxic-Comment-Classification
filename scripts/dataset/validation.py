@@ -4,8 +4,17 @@ validation.py
 Script CLI để kiểm tra chất lượng dataset (validate).
 Pipeline tự động lưu validation_report.json vào thư mục meta/.
 
-Cách dùng:
+Cách dùng CLI:
     python scripts/dataset/validation.py --input <INPUT_CSV>
+
+Cách dùng trong code Python / Colab:
+    from scripts.dataset.validation import validate_dataset_file
+
+    report = validate_dataset_file(
+        input_path="datasets/custom_dataset/v1/raw/raw_dataset.csv",
+        comment_col="comment",
+        label_col="is_toxic",
+    )
 
 Tuỳ chỉnh validation:
     Sửa trực tiếp trong hàm main() để override config.
@@ -17,6 +26,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # Thêm thư mục gốc project vào sys.path để import được src
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -35,6 +45,18 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Đường dẫn file CSV đầu vào.",
     )
+    parser.add_argument(
+        "--comment-col",
+        type=str,
+        default=None,
+        help="Tên cột comment (mặc định: 'comment').",
+    )
+    parser.add_argument(
+        "--label-col",
+        type=str,
+        default=None,
+        help="Tên cột nhãn (mặc định: 'is_toxic').",
+    )
     return parser.parse_args()
 
 
@@ -51,33 +73,57 @@ def _parse_dataset_info(input_path: Path) -> tuple[str, str]:
         return "custom_dataset", "v1"
 
 
-def main() -> None:
-    args = parse_args()
+def validate_dataset_file(
+    input_path: str,
+    comment_col: str = "comment",
+    label_col: str = "is_toxic",
+    encoding: str = "utf-8",
+    validation_config_override: dict[str, Any] | None = None,
+    dataset_config_override: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Kiểm tra chất lượng dataset và lưu báo cáo.
 
-    # ==========================================================
-    # [TUỲ CHỈNH] Cấu hình validation
-    # ==========================================================
+    Hàm này có thể gọi trực tiếp từ code Python hoặc Colab,
+    không phụ thuộc argparse.
+
+    Parameters
+    ----------
+    input_path : str
+        Đường dẫn file CSV đầu vào.
+    comment_col : str
+        Tên cột comment (mặc định: "comment").
+    label_col : str
+        Tên cột nhãn (mặc định: "is_toxic").
+    encoding : str
+        Encoding file CSV (mặc định: "utf-8").
+    validation_config_override : dict | None
+        Các tham số ghi đè cho ValidationConfig.
+    dataset_config_override : dict | None
+        Các tham số ghi đè cho DatasetConfig.
+
+    Returns
+    -------
+    dict[str, Any]
+        Báo cáo validation.
+    """
+    input_path_obj = Path(input_path)
+    dataset_name, version = _parse_dataset_info(input_path_obj)
+
+    # Config
     dataset_config = default_dataset_config.override(
-        # Ví dụ override:
-        # comment_col="comment",
-        # label_col="is_toxic",
+        comment_col=comment_col,
+        label_col=label_col,
+        encoding=encoding,
+        **(dataset_config_override or {}),
     )
     validation_config = default_validation_config.override(
-        # Ví dụ override:
-        # required_cols=["comment", "is_toxic"],
-        # enable_column_check=True,
-        # enable_null_check=True,
-        # enable_empty_or_no_letter_check=True,
-        # enable_duplicate_check=True,
+        **(validation_config_override or {}),
     )
-    # ==========================================================
-
-    input_path = Path(args.input)
-    dataset_name, version = _parse_dataset_info(input_path)
 
     # Load dataset
     df = read_csv_with_columns(
-        str(input_path),
+        str(input_path_obj),
         comment_col=dataset_config.comment_col,
         label_col=dataset_config.label_col,
         encoding=dataset_config.encoding,
@@ -110,6 +156,43 @@ def main() -> None:
 
     if "_meta_saved_to" in report:
         print(f"\n[INFO] Report saved: {report['_meta_saved_to']}")
+
+    return report
+
+
+def main() -> None:
+    args = parse_args()
+
+    # ==========================================================
+    # [TUỲ CHỈNH] Cấu hình validation
+    # ==========================================================
+    dataset_config = default_dataset_config.override(
+        # Ví dụ override:
+        # comment_col="comment",
+        # label_col="is_toxic",
+    )
+    validation_config = default_validation_config.override(
+        # Ví dụ override:
+        # required_cols=["comment", "is_toxic"],
+        # enable_column_check=True,
+        # enable_null_check=True,
+        # enable_empty_or_no_letter_check=True,
+        # enable_duplicate_check=True,
+    )
+    # ==========================================================
+
+    # CLI args override config
+    comment_col = args.comment_col or dataset_config.comment_col
+    label_col = args.label_col or dataset_config.label_col
+
+    validate_dataset_file(
+        input_path=args.input,
+        comment_col=comment_col,
+        label_col=label_col,
+        encoding=dataset_config.encoding,
+        validation_config_override=validation_config.to_dict(),
+        dataset_config_override=dataset_config.to_dict(),
+    )
 
 
 if __name__ == "__main__":
