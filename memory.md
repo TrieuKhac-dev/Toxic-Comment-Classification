@@ -289,6 +289,139 @@ Module đánh giá mô hình dùng chung cho mọi experiment.
 
 ---
 
+## 🚀 Serving (`src/serving/`)
+
+Module phục vụ model (model serving) sau khi train.
+Gồm 5 file, mỗi file có 1 trách nhiệm duy nhất.
+
+### `model_saver.py` — Lưu model sau khi train
+
+Mỗi hàm chỉ làm 1 việc (Single Responsibility Principle).
+
+| Function                                           | Mô tả                             | Framework                   |
+| -------------------------------------------------- | --------------------------------- | --------------------------- |
+| `create_experiment_dir(base_dir, experiment_name)` | Tạo thư mục `experiments/<tên>`   | Chung (mặc định: `models/`) |
+| `save_config(config, exp_dir)`                     | Ghi `config.json`                 | Chung                       |
+| `save_joblib(obj, filename, exp_dir)`              | Lưu object bằng joblib            | sklearn, lightgbm, ...      |
+| `save_fasttext(model, filename, exp_dir)`          | Lưu fasttext model                | fasttext                    |
+| `save_torch(model, filename, exp_dir)`             | Lưu PyTorch state_dict            | PyTorch                     |
+| `save_keras(model, filename, exp_dir)`             | Lưu Keras model                   | TensorFlow/Keras            |
+| `promote_to_production(exp_dir, base_dir)`         | Copy experiment lên `production/` | Chung                       |
+
+**Cách dùng**:
+
+```python
+from src.serving import model_saver as ms
+
+exp_dir = ms.create_experiment_dir(experiment_name="lightgbm_v3")
+ms.save_joblib(model, "model.pkl", exp_dir)
+ms.save_joblib(vectorizer, "vectorizer.pkl", exp_dir)
+ms.save_config({"threshold": 0.45, "metrics": {"f1": 0.92}}, exp_dir)
+ms.promote_to_production(exp_dir)
+```
+
+### `model_loader.py` — Load model từ production/
+
+| Function                                                 | Mô tả                          |
+| -------------------------------------------------------- | ------------------------------ |
+| `load_config(model_dir)`                                 | Đọc `config.json`              |
+| `load_joblib(model_dir, filename)`                       | Load joblib/pkl                |
+| `load_fasttext(model_dir, filename)`                     | Load fasttext                  |
+| `load_torch(model_dir, filename, model_class, **kwargs)` | Load PyTorch (cần model_class) |
+| `load_keras(model_dir, filename)`                        | Load Keras                     |
+
+### `schemas.py` — Pydantic request/response
+
+| Class             | Mô tả                                              |
+| ----------------- | -------------------------------------------------- |
+| `CommentRequest`  | Request body: `text` (1-10000 ký tự)               |
+| `PredictResponse` | Response: `label`, `probability`, `threshold`      |
+| `HealthResponse`  | Health check: `status`, `model`, `model_framework` |
+
+### `predictor.py` — Predict pipeline
+
+- **`Predictor`**: Class dùng chung cho mọi framework.
+  - `__init__(model_dir)`: Đọc config → load model + vectorizer + threshold.
+  - `from_torch(model_dir, model_class, **kwargs)`: Factory method cho PyTorch.
+  - `predict(text)`: Preprocess → extract features → predict → threshold.
+  - `predict_batch(texts)`: Predict nhiều comment.
+
+**Luồng predict**:
+
+```
+text → _preprocess() → _extract_features() → model.predict_proba() → threshold → result
+```
+
+### `app.py` — FastAPI server
+
+- **Endpoints**:
+  - `GET /health`: Kiểm tra trạng thái server.
+  - `POST /predict`: Dự đoán 1 comment.
+  - `POST /predict_batch`: Dự đoán nhiều comment.
+- **CORS**: Cho phép mọi origin.
+- **Model loading**: Tự động load từ `models/production/` khi startup.
+  - Ưu tiên env var `MODEL_DIR`.
+  - Nếu không có config.json → server vẫn chạy nhưng `/predict` trả về 503.
+- **CLI**: `python -m src.serving.app --host 0.0.0.0 --port 8000 --model-dir /path/to/model`
+
+### Scripts serving
+
+| Script                           | Mô tả                   |
+| -------------------------------- | ----------------------- |
+| `scripts/serving/run_server.sh`  | Chạy server (Linux/Mac) |
+| `scripts/serving/run_server.bat` | Chạy server (Windows)   |
+
+### Cấu trúc thư mục models
+
+```
+models/
+├── experiments/
+│   ├── baseline_lr/          # Mỗi experiment là 1 thư mục
+│   │   ├── model.pkl
+│   │   ├── vectorizer.pkl
+│   │   └── config.json
+│   └── lightgbm_v3/
+│       ├── model.pkl
+│       ├── vectorizer.pkl
+│       └── config.json
+└── production/               # Model đang serve (copy từ experiments/)
+    ├── model.pkl
+    ├── vectorizer.pkl
+    └── config.json
+```
+
+### config.json format
+
+```json
+{
+  "experiment_name": "baseline_lr",
+  "model_framework": "sklearn",
+  "model_type": "logistic_regression",
+  "features": ["tfidf"],
+  "files": {
+    "model": "model.pkl",
+    "vectorizer": "vectorizer.pkl",
+    "embeddings": null,
+    "tokenizer": null
+  },
+  "threshold": 0.45,
+  "metrics": {
+    "f1": 0.92,
+    "accuracy": 0.85,
+    "precision": 0.88,
+    "recall": 0.76,
+    "roc_auc": 0.95
+  },
+  "preprocessing": {
+    "lower": true,
+    "strip_spaces": true,
+    "remove_stopwords": true
+  }
+}
+```
+
+---
+
 ## 🛠️ Utils (`src/utils/`)
 
 ### `csv.py`
@@ -420,3 +553,37 @@ Module đánh giá mô hình dùng chung cho mọi experiment.
 - **downloader.py**: `gdown.download_folder` có thể tạo thư mục con → tự động tìm và move file.
 - **path_config.py `get_processed_filename()`**: Tự động bỏ prefix "raw*" và thêm "processed*".
 - **dataset_tracker.py**: Metrics và params được prefix bằng tên file (VD: `cleaning_log.final_rows`).
+
+sau đó:
+
+# 📋 Task Progress — Tạo module `src/training/` + Cập nhật `experiment_template`
+
+## Mục tiêu
+
+Tách code lặp trong 15 notebooks training thành module `src/training/` dùng chung, gồm các hàm evaluation: threshold, metrics, cross-validation, visualization, error analysis.
+
+## Các bước thực hiện
+
+### ✅ Bước 1: Tạo cấu trúc thư mục `src/training/`
+
+- [x] Tạo `src/training/__init__.py`
+- [x] Tạo `src/training/threshold.py` — `find_best_threshold()`, `find_best_threshold_cost()`, `find_best_threshold_with_recall_constraint()`
+- [x] Tạo `src/training/metrics.py` — `evaluate_model()`, `run_cross_validation()`, `print_cv_results_table()`
+- [x] Tạo `src/training/visualization.py` — `plot_roc_curve()`, `plot_pr_curve()`, `plot_calibration_curve()`
+- [x] Tạo `src/training/error_analysis.py` — `show_fp_fn_samples()`
+
+### ✅ Bước 2: Cập nhật `experiment_template.ipynb`
+
+- [x] Cập nhật cell import: thêm `from src.training.*`
+- [x] Cập nhật cell evaluation: dùng các hàm từ `src/training/`
+- [x] Cập nhật cell download: dùng `download_from_config()` đúng cách
+- [x] Thêm cell Threshold Selection (3 cách: F1-max, Cost-based, Recall constraint)
+- [x] Thêm cell Cross-Validation
+- [x] Thêm cell Visualization (ROC, PR, Calibration)
+- [x] Thêm cell Error Analysis (FP/FN samples)
+- [x] Tách Feature Engineering + Train thành cell riêng (NOTEBOOK - tuỳ chỉnh)
+- [x] Dùng `split_dataframe()` từ `src.dataset.split` thay vì `train_test_split`
+
+### ✅ Bước 3: Cập nhật `memory.md`
+
+- [x] Thêm section `src/training/` vào memory.md với đầy đủ bảng hàm
