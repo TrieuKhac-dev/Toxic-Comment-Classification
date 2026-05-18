@@ -49,4 +49,8 @@ notebooks/
 # Project files
 history.md
 task_progress.md
-memo.md
+memory.md
+
+# Models (trained model files)
+models/
+!models/**/.gitkeep
