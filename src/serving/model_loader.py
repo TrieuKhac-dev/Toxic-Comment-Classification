@@ -81,7 +81,7 @@ def load_joblib(model_dir: str, filename: str) -> Any:
         raise FileNotFoundError(f"Không tìm thấy file: {filepath}")
 
     obj = joblib.load(filepath)
-    print(f"  ✅ Loaded: {filepath}")
+    print(f"  Loaded: {filepath}")
     return obj
 
 
@@ -108,7 +108,7 @@ def load_fasttext(model_dir: str, filename: str) -> Any:
         raise FileNotFoundError(f"Không tìm thấy file: {filepath}")
 
     model = fasttext.load_model(filepath)
-    print(f"  ✅ Loaded: {filepath}")
+    print(f"  Loaded: {filepath}")
     return model
 
 
@@ -141,7 +141,7 @@ def load_torch(model_dir: str, filename: str, model_class: type, **kwargs: Any) 
     model = model_class(**kwargs)
     model.load_state_dict(torch.load(filepath, map_location="cpu"))
     model.eval()
-    print(f"  ✅ Loaded: {filepath}")
+    print(f"  Loaded: {filepath}")
     return model
 
 
@@ -168,5 +168,5 @@ def load_keras(model_dir: str, filename: str) -> Any:
         raise FileNotFoundError(f"Không tìm thấy file: {filepath}")
 
     model = keras.models.load_model(filepath)
-    print(f"  ✅ Loaded: {filepath}")
+    print(f"  Loaded: {filepath}")
     return model

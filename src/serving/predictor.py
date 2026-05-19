@@ -23,6 +23,7 @@ from typing import Any
 import numpy as np
 
 from src.serving.embedding_factory import (
+    BaseEmbedding,
     EmbeddingFactory,
 )
 from src.serving.preprocessing_factory import (
@@ -55,7 +56,15 @@ class BasePredictor(ABC):
 
         # Khởi tạo embedding riêng cho model này
         # FastTextPredictor override __init__ để không gọi cái này
-        self.embedding = EmbeddingFactory.create(model_dir, config)
+        self.embedding: BaseEmbedding | None
+        embedding_cfg = config.get("embedding", {})
+        if embedding_cfg.get("type") == "none":
+            # Model là sklearn Pipeline đã tự xử lý feature extraction
+            # (vd: Pipeline([TfidfVectorizer, LogisticRegression]))
+            # Không cần embedding riêng
+            self.embedding = None
+        else:
+            self.embedding = EmbeddingFactory.create(model_dir, config)
 
         # Load model
         self._load_model()
@@ -112,6 +121,11 @@ class BasePredictor(ABC):
         np.ndarray
             Embedding vectors.
         """
+        if self.embedding is None:
+            # Model là sklearn Pipeline đã tự xử lý feature extraction
+            # (vd: Pipeline([TfidfVectorizer, LogisticRegression]))
+            # Trả về texts để model tự xử lý
+            return np.array(texts)
         return self.embedding.transform(texts)
 
     def predict(self, text: str) -> dict[str, Any]:
@@ -237,7 +251,7 @@ class SklearnPredictor(BasePredictor):
         files = self.config.get("files", {})
         model_file = files.get("model", "model.pkl")
         self.model = ml.load_joblib(self.model_dir, model_file)
-        print(f"  ✅ SklearnPredictor ready | threshold={self.threshold}")
+        print(f"  SklearnPredictor ready | threshold={self.threshold}")
 
     def _predict_proba(self, features: np.ndarray) -> np.ndarray:
         """Predict probability dùng sklearn API."""
@@ -286,7 +300,7 @@ class TorchPredictor(BasePredictor):
         else:
             self.tokenizer = None
 
-        print(f"  ✅ TorchPredictor ready | threshold={self.threshold}")
+        print(f"  TorchPredictor ready | threshold={self.threshold}")
 
     def _predict_proba(self, features: np.ndarray) -> np.ndarray:
         """Predict probability dùng PyTorch."""
@@ -332,7 +346,7 @@ class TensorFlowPredictor(BasePredictor):
         files = self.config.get("files", {})
         model_file = files.get("model", "model.h5")
         self.model = ml.load_keras(self.model_dir, model_file)
-        print(f"  ✅ TensorFlowPredictor ready | threshold={self.threshold}")
+        print(f"  TensorFlowPredictor ready | threshold={self.threshold}")
 
     def _predict_proba(self, features: np.ndarray) -> np.ndarray:
         """Predict probability dùng TensorFlow."""
@@ -357,7 +371,7 @@ class FastTextPredictor(BasePredictor):
 
         # FastText không cần embedding riêng — gán None
         # Override embed() để báo lỗi rõ ràng nếu ai đó gọi
-        self.embedding = None  # type: ignore[assignment]
+        self.embedding: BaseEmbedding | None = None
 
         # Load model
         self._load_model()
@@ -380,7 +394,7 @@ class FastTextPredictor(BasePredictor):
         files = self.config.get("files", {})
         model_file = files.get("model", "fasttext_model.bin")
         self.model = ml.load_fasttext(self.model_dir, model_file)
-        print(f"  ✅ FastTextPredictor ready | threshold={self.threshold}")
+        print(f"  FastTextPredictor ready | threshold={self.threshold}")
 
     def _predict_proba(self, features: np.ndarray) -> np.ndarray:
         """
@@ -499,7 +513,7 @@ class CustomPredictor(BasePredictor):
         files = self.config.get("files", {})
         model_file = files.get("model", "model.pkl")
         self.model = ml.load_joblib(self.model_dir, model_file)
-        print(f"  ✅ CustomPredictor ready | threshold={self.threshold}")
+        print(f"  CustomPredictor ready | threshold={self.threshold}")
 
     def _predict_proba(self, features: np.ndarray) -> np.ndarray:
         """Predict probability dùng sklearn API."""
@@ -538,7 +552,7 @@ class EnsemblePredictor(BasePredictor):
         self.weights = [w / total for w in self.weights]
 
         print(
-            f"  ✅ EnsemblePredictor ready | {len(predictors)} models | "
+            f"  EnsemblePredictor ready | {len(predictors)} models | "
             f"strategy={strategy}"
         )
 

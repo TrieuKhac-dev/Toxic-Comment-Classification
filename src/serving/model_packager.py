@@ -300,6 +300,21 @@ class ModelPackager:
         # Cập nhật config với model_name và version chính xác
         config["model_name"] = model_name
         config["version"] = version
+
+        # Fix embedding type nếu không phù hợp
+        # Nếu embedding type là "tfidf" nhưng không có file vectorizer trong files
+        # → model là sklearn Pipeline đã tự xử lý feature extraction
+        embedding_cfg = config.get("embedding", {})
+        if embedding_cfg.get("type") == "tfidf":
+            files = config.get("files", {})
+            has_vectorizer = any(
+                "vectorizer" in k.lower() or "tfidf" in k.lower() for k in files
+            )
+            if not has_vectorizer:
+                print("  🔧 Auto-fix: embedding type changed from 'tfidf' to 'none'")
+                print("    (sklearn Pipeline đã tự xử lý feature extraction)")
+                config["embedding"]["type"] = "none"
+
         save_config(config, str(dest_dir))
 
         # Validate: thử load model
@@ -458,6 +473,13 @@ class ModelPackager:
     ) -> str:
         """
         Tự động detect loại embedding dựa trên extra_files và framework.
+
+        Quy tắc:
+        - fasttext framework → "none" (FastText tự xử lý embedding)
+        - sklearn/lightgbm/xgboost framework:
+          - Nếu có extra_files chứa vectorizer/tfidf → "tfidf"
+          - Nếu không có extra_files → "none" (model là Pipeline đã tự xử lý)
+        - Còn lại → "tfidf" (mặc định)
         """
         # FastText framework tự xử lý embedding
         if framework == "fasttext":
@@ -470,6 +492,11 @@ class ModelPackager:
                 return "tfidf"
             if "fasttext" in lower:
                 return "fasttext"
+
+        # Nếu framework là sklearn/lightgbm/xgboost và không có extra_files
+        # → model là Pipeline đã tự xử lý feature extraction
+        if framework in ("sklearn", "lightgbm", "xgboost") and not extra_files:
+            return "none"
 
         # Mặc định: tfidf (phổ biến nhất)
         return "tfidf"

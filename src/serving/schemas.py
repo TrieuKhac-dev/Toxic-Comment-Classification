@@ -7,11 +7,9 @@ Hỗ trợ multi-model multi-version.
 
 from __future__ import annotations
 
-from typing import Any
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, Field, field_validator
-
-# === Basic schemas (giữ nguyên từ phiên bản cũ) ===
+# === Basic schemas ===
 
 
 class CommentRequest(BaseModel):
@@ -54,19 +52,18 @@ class HealthResponse(BaseModel):
     status: str = Field(
         ..., description="Trạng thái server", json_schema_extra={"example": "ok"}
     )
-    model: str = Field(
-        ...,
-        description="Thông tin model đang serve",
-        json_schema_extra={"example": "lightgbm_fasttext_v3"},
+    version: str = Field(
+        ..., description="Phiên bản API", json_schema_extra={"example": "2.0.0"}
     )
-    model_framework: str = Field(
-        ...,
-        description="Framework của model",
-        json_schema_extra={"example": "lightgbm"},
+    loaded_models: list[str] = Field(
+        ..., description="Danh sách model đang load trong memory"
+    )
+    total_models_in_registry: int = Field(
+        ..., description="Tổng số model/version trong registry"
     )
 
 
-# === New schemas cho multi-model multi-version ===
+# === Multi-model schemas ===
 
 
 class ModelVersionInfo(BaseModel):
@@ -81,7 +78,7 @@ class ModelVersionInfo(BaseModel):
 
 
 class ModelsListResponse(BaseModel):
-    """Response cho GET /v1/models."""
+    """Response cho GET /models."""
 
     models: list[ModelVersionInfo] = Field(
         ..., description="Danh sách tất cả model/version"
@@ -90,7 +87,7 @@ class ModelsListResponse(BaseModel):
 
 
 class ModelDetailResponse(BaseModel):
-    """Response cho GET /v1/models/{model_name}."""
+    """Response cho GET /models/{model_name}."""
 
     model_name: str = Field(..., description="Tên model")
     versions: list[str] = Field(..., description="Danh sách version có sẵn")
@@ -100,13 +97,31 @@ class ModelDetailResponse(BaseModel):
     )
 
 
-class PredictWithModelRequest(CommentRequest):
-    """Request body cho predict với model cụ thể (có thể thêm params)."""
+class PredictParams(BaseModel):
+    """Tham số tùy chọn cho predict."""
 
-    params: dict[str, Any] | None = Field(
+    threshold: float | None = Field(
         None,
-        description="Tham số bổ sung (ví dụ: override threshold)",
-        json_schema_extra={"example": {"threshold": 0.3}},
+        ge=0.0,
+        le=1.0,
+        description="Override threshold (mặc định: dùng threshold của model)",
+        json_schema_extra={"example": 0.3},
+    )
+
+
+class PredictWithModelRequest(BaseModel):
+    """Request body cho predict với model cụ thể."""
+
+    text: str = Field(
+        ...,
+        min_length=1,
+        max_length=10000,
+        description="Bình luận cần kiểm tra",
+        json_schema_extra={"example": "mày ngu vãi"},
+    )
+    params: PredictParams | None = Field(
+        None,
+        description="Tham số tùy chọn (ví dụ: override threshold)",
     )
 
 
@@ -127,9 +142,9 @@ class PredictBatchWithModelRequest(BaseModel):
         description="Danh sách bình luận cần kiểm tra",
         json_schema_extra={"example": ["mày ngu vãi", "chào bạn"]},
     )
-    params: dict[str, Any] | None = Field(
+    params: PredictParams | None = Field(
         None,
-        description="Tham số bổ sung",
+        description="Tham số tùy chọn (áp dụng cho tất cả texts)",
     )
 
 
@@ -143,84 +158,8 @@ class PredictBatchWithModelResponse(BaseModel):
     version: str = Field(..., description="Version đã dùng")
 
 
-class EnsemblePredictRequest(BaseModel):
-    """Request body cho ensemble predict."""
-
-    models: list[str] = Field(
-        ...,
-        min_length=1,
-        max_length=20,
-        description="Danh sách model/version (vd: ['toxic_lstm/v1', 'toxic_bert/v1'])",
-        json_schema_extra={"example": ["toxic_lstm/v1", "toxic_bert/v1"]},
-    )
-    text: str = Field(
-        ...,
-        min_length=1,
-        max_length=10000,
-        description="Bình luận cần kiểm tra",
-        json_schema_extra={"example": "mày ngu vãi"},
-    )
-    weights: list[float] | None = Field(
-        None,
-        description="Trọng số cho từng model (mặc định: equal weight)",
-        json_schema_extra={"example": [0.7, 0.3]},
-    )
-    strategy: str = Field(
-        "weighted_average",
-        description="Chiến lược ensemble: weighted_average, majority_vote, max_probability",
-        json_schema_extra={"example": "weighted_average"},
-    )
-
-    @field_validator("models")
-    @classmethod
-    def validate_model_spec(cls, value: list[str]) -> list[str]:
-        """
-        Validate format của từng model spec.
-        Hợp lệ: "model_name" hoặc "model_name/version" (vd: toxic_lstm/v1).
-        """
-        import re
-
-        valid_spec = re.compile(r"^[a-z0-9_-]+(/v\d+)?$")
-        for spec in value:
-            if not valid_spec.match(spec):
-                raise ValueError(
-                    f"Invalid model spec: '{spec}'. "
-                    "Expected format: 'model_name' or 'model_name/v<number>' "
-                    "(e.g., 'toxic_lstm' or 'toxic_lstm/v1')"
-                )
-        return value
-
-
-class EnsemblePredictResponse(BaseModel):
-    """Response cho ensemble predict."""
-
-    label: int = Field(..., description="Kết quả ensemble")
-    probability: float = Field(..., description="Xác suất ensemble")
-    threshold: float = Field(..., description="Threshold đang dùng")
-    strategy: str = Field(..., description="Chiến lược ensemble")
-    individual_results: list[dict[str, Any]] = Field(
-        ..., description="Kết quả từ từng model"
-    )
-
-
-class HealthV1Response(BaseModel):
-    """Response cho GET /v1/health."""
-
-    status: str = Field(..., description="Trạng thái server")
-    version: str = Field(..., description="API version")
-    models: dict[str, str] = Field(
-        ..., description="Trạng thái từng model (model_name/version -> status)"
-    )
-    loaded_models: list[str] = Field(
-        ..., description="Danh sách model đang load trong memory"
-    )
-    total_models_in_registry: int = Field(
-        ..., description="Tổng số model/version trong registry"
-    )
-
-
 class DeployRequest(BaseModel):
-    """Request body cho POST /v1/models/deploy — hot-deploy model."""
+    """Request body cho POST /models/deploy — hot-deploy model."""
 
     model_name: str = Field(
         ...,
@@ -244,7 +183,7 @@ class DeployRequest(BaseModel):
 
 
 class DeployResponse(BaseModel):
-    """Response cho POST /v1/models/deploy."""
+    """Response cho POST /models/deploy."""
 
     status: str = Field(..., description="Trạng thái deploy")
     model_name: str = Field(..., description="Tên model")

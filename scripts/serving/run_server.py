@@ -62,13 +62,13 @@ def main() -> None:
     if args.deploy:
         deploy_folder = args.deploy
         if not os.path.isdir(deploy_folder):
-            print(f"❌ Folder not found: {deploy_folder}")
+            print(f"Error: Folder not found: {deploy_folder}")
             sys.exit(1)
 
         # Đọc model_name từ config.json trong folder
         config_path = os.path.join(deploy_folder, "config.json")
         if not os.path.exists(config_path):
-            print(f"❌ config.json not found in {deploy_folder}")
+            print(f"Error: config.json not found in {deploy_folder}")
             sys.exit(1)
 
         import json
@@ -78,11 +78,11 @@ def main() -> None:
 
         model_name = config.get("model_name", "")
         if not model_name:
-            print("❌ model_name not found in config.json")
+            print("Error: model_name not found in config.json")
             sys.exit(1)
 
         print(f"\n{'='*50}")
-        print(f"  🚀 Deploying model '{model_name}' before starting server...")
+        print(f"  Deploying model '{model_name}' before starting server...")
         print(f"{'='*50}")
 
         from src.serving.model_packager import ModelPackager
@@ -93,8 +93,8 @@ def main() -> None:
                 from_folder=deploy_folder,
             )
         except Exception as e:
-            print(f"  ❌ Deploy failed: {e}")
-            print("  💡 Starting server anyway...\n")
+            print(f"  Deploy failed: {e}")
+            print("  Starting server anyway...\n")
 
     # Set registry dir nếu có
     if args.registry_dir:
@@ -102,7 +102,7 @@ def main() -> None:
 
     # Start server
     print(f"\n{'='*50}")
-    print(f"  🚀 Starting server at http://{args.host}:{args.port}")
+    print(f"  Starting server at http://{args.host}:{args.port}")
     print(f"{'='*50}\n")
 
     import uvicorn

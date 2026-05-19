@@ -19,6 +19,10 @@ Usage:
 
     # Liệt kê chi tiết
     python scripts/serving/deploy_model.py --list --verbose
+
+    # Xóa model
+    python scripts/serving/deploy_model.py --delete ban3_baseline_lr
+    python scripts/serving/deploy_model.py --delete ban3_baseline_lr:v1
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -39,10 +44,11 @@ Ví dụ:
   python scripts/serving/deploy_model.py ban10_fasttext --from-folder ./ban10_fasttext_model/
   python scripts/serving/deploy_model.py ban10_fasttext --from-folder ./ban10_fasttext_model/ --version v2
   python scripts/serving/deploy_model.py --list
+  python scripts/serving/deploy_model.py --delete ban3_baseline_lr
+  python scripts/serving/deploy_model.py --delete ban3_baseline_lr:v1
         """,
     )
 
-    # Mutually exclusive: deploy hoặc list
     parser.add_argument(
         "model_name",
         nargs="?",
@@ -74,6 +80,16 @@ Ví dụ:
         action="store_true",
         help="Hiển thị chi tiết (dùng với --list)",
     )
+    parser.add_argument(
+        "--delete",
+        default=None,
+        help="Xóa model khỏi registry. Định dạng: model_name hoặc model_name:version (vd: ban3_baseline_lr hoặc ban3_baseline_lr:v1)",
+    )
+    parser.add_argument(
+        "--delete-force",
+        action="store_true",
+        help="Xóa model không cần xác nhận (dùng với --delete)",
+    )
 
     args = parser.parse_args()
 
@@ -82,15 +98,20 @@ Ví dụ:
         list_models(args.verbose)
         return
 
+    # --- Delete model ---
+    if args.delete:
+        delete_model(args.delete, args.delete_force)
+        return
+
     # --- Deploy model ---
     if not args.model_name:
         parser.print_help()
-        print("\n❌ Error: model_name is required when not using --list")
+        print("\nError: model_name is required when not using --list or --delete")
         sys.exit(1)
 
     if not args.from_folder:
         parser.print_help()
-        print("\n❌ Error: --from-folder is required")
+        print("\nError: --from-folder is required")
         sys.exit(1)
 
     deploy_model(args.model_name, args.from_folder, args.version, args.force)
@@ -103,7 +124,6 @@ def deploy_model(
     force: bool,
 ) -> None:
     """Deploy model từ folder vào registry."""
-    # Thêm project root vào sys.path
     _ensure_project_root()
 
     from src.serving.model_packager import ModelPackager
@@ -115,9 +135,58 @@ def deploy_model(
             version=version,
             force=force,
         )
-        print(f"\n  📍 Deployed to: {dest}")
+        print(f"\n  Deployed to: {dest}")
     except Exception as e:
-        print(f"\n  ❌ Deploy failed: {e}")
+        print(f"\n  Deploy failed: {e}")
+        sys.exit(1)
+
+
+def delete_model(target: str, force: bool = False) -> None:
+    """
+    Xóa model khỏi registry.
+
+    Định dạng:
+        --delete model_name       -> Xóa toàn bộ model (tất cả versions)
+        --delete model_name:v1    -> Xóa 1 version cụ thể
+    """
+    _ensure_project_root()
+
+    from src.serving.model_saver import get_registry_dir
+
+    registry_dir = get_registry_dir()
+
+    # Parse target
+    if ":" in target:
+        model_name, version = target.split(":", 1)
+        path_to_delete = os.path.join(registry_dir, model_name, version)
+        desc = f"model '{model_name}' version '{version}'"
+    else:
+        model_name = target
+        path_to_delete = os.path.join(registry_dir, model_name)
+        desc = f"model '{model_name}' (all versions)"
+
+    # Kiểm tra tồn tại
+    if not os.path.exists(path_to_delete):
+        print(f"\n  Not found: {path_to_delete}")
+        print(f"  Khong tim thay {desc} trong registry.")
+        sys.exit(1)
+
+    # Xác nhận (nếu không force)
+    if not force:
+        print(f"\n  Ban co chac chan muon xoa {desc}?")
+        print(f"  Path: {path_to_delete}")
+        confirm = input("  Nhap 'yes' de xac nhan: ").strip().lower()
+        if confirm != "yes":
+            print("  Huy bo.")
+            return
+
+    # Xóa
+    try:
+        shutil.rmtree(path_to_delete)
+        print(f"\n  Da xoa: {path_to_delete}")
+        print(f"  Da xoa {desc} khoi registry.")
+    except Exception as e:
+        print(f"\n  Loi khi xoa: {e}")
         sys.exit(1)
 
 
@@ -130,17 +199,17 @@ def list_models(verbose: bool) -> None:
 
     registry_dir = get_registry_dir()
     print(f"\n{'='*50}")
-    print(f"  📦 Model Registry: {registry_dir}")
+    print(f"  Model Registry: {registry_dir}")
     print(f"{'='*50}")
 
     if not os.path.isdir(registry_dir):
-        print(f"\n  ⚠️  Registry directory not found: {registry_dir}")
-        print("  💡  Create models/registry/<model_name>/<version>/ with config.json")
+        print(f"\n  Registry directory not found: {registry_dir}")
+        print("  Create models/registry/<model_name>/<version>/ with config.json")
         return
 
     models = ModelRegistry.list_available_models()
     if not models:
-        print("\n  📭 No models found in registry")
+        print("\n  No models found in registry")
         return
 
     print(f"\n  {'Model Name':<20} {'Version':<10} {'Framework':<15} {'Threshold':<10}")
@@ -160,7 +229,7 @@ def list_models(verbose: bool) -> None:
             if os.path.exists(config_path):
                 with open(config_path, encoding="utf-8") as f:
                     config = json.load(f)
-                print(f"\n  📍 {m.key}")
+                print(f"\n  {m.key}")
                 print(f"     Files: {json.dumps(config.get('files', {}), indent=4)}")
                 print(f"     Embedding: {config.get('embedding', {})}")
                 print(f"     Preprocessing: {config.get('preprocessing', {})}")
