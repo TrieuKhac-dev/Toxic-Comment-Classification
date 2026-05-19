@@ -104,7 +104,7 @@ def preprocess_text_pipeline(
     dataset_name: str = "custom_dataset",
     version: str = "v1",
     save_meta: bool = True,
-) -> str:
+) -> str | list[str]:
     """
     Pipeline tiền xử lý text hoàn chỉnh: normalize -> tokenize -> filter_stopwords -> join.
 
@@ -138,8 +138,10 @@ def preprocess_text_pipeline(
     # Chạy pipeline
     result, report = BasePipeline.run_steps(text, cfg, PREPROCESSING_STEPS)
 
-    # Ghép lại thành text nếu kết quả là list token và return_tokens=False
-    if isinstance(result, list) and not cfg.return_tokens:
+    # Xử lý kết quả dựa trên return_tokens
+    if isinstance(result, list):
+        if cfg.return_tokens:
+            return result  # Trả về list tokens
         result_str: str = " ".join(result)
     else:
         result_str = result if isinstance(result, str) else str(result)
