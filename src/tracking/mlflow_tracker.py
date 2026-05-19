@@ -120,6 +120,7 @@ class MLflowTracker:
         Log model lên MLflow.
         Tự động chọn phương thức phù hợp dựa trên loại model:
         - sklearn: dùng mlflow.sklearn.log_model
+        - CatBoost: dùng mlflow.catboost.log_model
         - Khác: dùng mlflow.pyfunc.log_model
         """
         try:
@@ -127,6 +128,16 @@ class MLflowTracker:
 
             if isinstance(model, sklearn.base.BaseEstimator):
                 mlflow.sklearn.log_model(sk_model=model, artifact_path=artifact_path)
+                return
+        except ImportError:
+            pass
+
+        # CatBoost
+        try:
+            from catboost import CatBoost
+
+            if isinstance(model, CatBoost):
+                mlflow.catboost.log_model(cb_model=model, artifact_path=artifact_path)
                 return
         except ImportError:
             pass
